@@ -1,0 +1,175 @@
+package logging
+
+import (
+	"fmt"
+	"log"
+	"strings"
+
+	"github.com/Gobusters/ectoinject/loglevel"
+)
+
+// STDOUT colors
+const (
+	reset   = "\033[0m"
+	red     = "\033[31m"
+	green   = "\033[32m"
+	yellow  = "\033[33m"
+	blue    = "\033[34m"
+	magenta = "\033[35m"
+)
+
+type LogFunc func(level, msg string)
+
+type Logger struct {
+	prefix         string
+	level          string
+	colorsEnabled  bool
+	customLogFunc  LogFunc
+	loggingEnabled bool
+}
+
+// NewLogger Creates a new Logger
+// prefix: The prefix to use for all log messages. Defaults to "ectoinject"
+// level: The log level to use. Must be one of INFO, WARN, ERROR, FATAL (defaults to INFO)
+// colorsEnabled: Whether or not to use colors in the log messages
+// loggingEnabled: Whether or not to log messages
+// customLogFunc: A custom log function to use. If provided, all other options are ignored
+func NewLogger(prefix, level string, colorsEnabled, loggingEnabled bool, customLogFunc LogFunc) (*Logger, error) {
+	level = strings.ToLower(level)
+	if level == "" {
+		level = loglevel.INFO
+	}
+
+	if prefix == "" {
+		prefix = "ectoinject"
+	}
+
+	// Ensure the log level is valid
+	if !validateLogLevel(level) {
+		return nil, fmt.Errorf("invalid log level '%s' must be one of %v", level, loglevel.LogLevels)
+	}
+
+	return &Logger{
+		prefix:         prefix,
+		level:          level,
+		colorsEnabled:  colorsEnabled,
+		customLogFunc:  customLogFunc,
+		loggingEnabled: loggingEnabled,
+	}, nil
+}
+
+func validateLogLevel(level string) bool {
+	// Ensure the log level is valid
+	valid := false
+	for _, l := range loglevel.LogLevels {
+		if l == level {
+			valid = true
+			break
+		}
+	}
+
+	return valid
+}
+
+// Warn Logs a message at the WARN level
+// format: The format string to use
+// args: The arguments to use in the format string
+func (l *Logger) Warn(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	l.LogMessage(loglevel.WARN, msg)
+}
+
+// Info Logs a message at the INFO level
+// format: The format string to use
+// args: The arguments to use in the format string
+func (l *Logger) Info(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	l.LogMessage(loglevel.INFO, msg)
+}
+
+// Error Logs a message at the ERROR level
+// format: The format string to use
+// args: The arguments to use in the format string
+func (l *Logger) Error(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	l.LogMessage(loglevel.ERROR, msg)
+}
+
+// Fatal: Logs a message at the FATAL level
+// format: The format string to use
+// args: The arguments to use in the format string
+func (l *Logger) Fatal(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	l.LogMessage(loglevel.FATAL, msg)
+}
+
+// LogMessage Logs a message to STDOUT
+// level: The log level to use
+// msg: The message to log
+func (l *Logger) LogMessage(level, msg string) {
+	// Are logs enabled?
+	if !l.loggingEnabled {
+		return
+	}
+
+	// Use custom log function if provided
+	if l.customLogFunc != nil {
+		l.customLogFunc(level, msg)
+		return
+	}
+
+	// Adds log info to the message
+	msg = fmt.Sprintf("%s (%s): %s", l.prefix, level, msg)
+
+	color := ""
+	resetColor := ""
+
+	if l.colorsEnabled {
+		resetColor = reset
+
+		switch level {
+		case loglevel.INFO:
+			color = blue
+		case loglevel.WARN:
+			color = yellow
+		case loglevel.ERROR:
+			color = red
+		case loglevel.FATAL:
+			color = magenta
+		}
+	}
+
+	if level == loglevel.FATAL {
+		log.Printf("%s%s%s", color, msg, resetColor)
+		return
+	}
+
+	if l.level == loglevel.FATAL {
+		return // Don't log anything under FATAL
+	}
+
+	if level == loglevel.ERROR {
+		log.Printf("%s%s%s", color, msg, resetColor)
+		return
+	}
+
+	if l.level == loglevel.ERROR {
+		return // Don't log anything under ERROR
+	}
+
+	if level == loglevel.WARN {
+		log.Printf("%s%s%s", color, msg, resetColor)
+		return
+	}
+
+	if l.level == loglevel.WARN {
+		return // Don't log anything under WARN
+	}
+
+	if level == loglevel.INFO {
+		log.Printf("%s%s%s", color, msg, resetColor)
+		return
+	}
+
+	log.Println(msg)
+}
