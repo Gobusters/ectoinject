@@ -42,7 +42,7 @@ func TestGetSingleton(t *testing.T) {
 	}
 
 	config := DIContainerConfig{
-		ID:                       "test",
+		ID:                       "test 1",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
 		RequireInjectTag:         false,
@@ -59,6 +59,7 @@ func TestGetSingleton(t *testing.T) {
 	assert.Nil(t, err, "error registering test struct singleton")
 
 	ctx := context.Background()
+	ctx, _ = SetActiveContainer(ctx, config.ID)
 
 	test, err := GetDependency[testStruct](ctx)
 	assert.Nil(t, err, "error getting test struct")
@@ -86,16 +87,18 @@ func TestGetNamedSingleton(t *testing.T) {
 	}
 
 	config := DIContainerConfig{
-		ID:                       "test",
+		ID:                       "test 2",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
 		RequireInjectTag:         false,
 		AllowUnsafeDependencies:  false,
 	}
 
-	ctx := context.Background()
 	container, err := NewDIContainer(config)
 	assert.Nil(t, err, "error creating container")
+
+	ctx := context.Background()
+	ctx, _ = SetActiveContainer(ctx, config.ID)
 
 	err = RegisterSingleton[testStruct, testStruct](container)
 	assert.Nil(t, err, "error registering test struct singleton")
@@ -129,16 +132,18 @@ func TestGetDIContainer(t *testing.T) {
 	}
 
 	config := DIContainerConfig{
-		ID:                       "test",
+		ID:                       "test 3",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
 		RequireInjectTag:         false,
 		AllowUnsafeDependencies:  false,
 	}
 
-	ctx := context.Background()
 	container, err := NewDIContainer(config)
 	assert.Nil(t, err, "error creating container")
+
+	ctx := context.Background()
+	ctx, _ = SetActiveContainer(ctx, config.ID)
 
 	err = RegisterSingleton[testStruct, testStruct](container)
 	assert.Nil(t, err, "error registering test struct singleton")
@@ -155,7 +160,7 @@ func TestGetScoped(t *testing.T) {
 	}
 
 	config := DIContainerConfig{
-		ID:                       "test",
+		ID:                       "test 4",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
 		RequireInjectTag:         false,
@@ -174,6 +179,7 @@ func TestGetScoped(t *testing.T) {
 
 	// scope ctx
 	ctx := context.Background()
+	ctx, _ = SetActiveContainer(ctx, config.ID)
 	ctx = ScopeContext(ctx)
 	defer UnscopeContext(ctx)
 
@@ -196,6 +202,7 @@ func TestGetScoped(t *testing.T) {
 
 	// create new scope
 	ctx2 := context.Background()
+	ctx2, _ = SetActiveContainer(ctx2, config.ID)
 	ctx2 = ScopeContext(ctx2)
 	defer UnscopeContext(ctx2)
 
@@ -214,7 +221,7 @@ func TestGetTransient(t *testing.T) {
 	}
 
 	config := DIContainerConfig{
-		ID:                       "test",
+		ID:                       "test 5",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
 		RequireInjectTag:         false,
@@ -233,6 +240,7 @@ func TestGetTransient(t *testing.T) {
 
 	// scope ctx
 	ctx := context.Background()
+	ctx, _ = SetActiveContainer(ctx, config.ID)
 	ctx = ScopeContext(ctx)
 	defer UnscopeContext(ctx)
 
@@ -260,7 +268,7 @@ func TestUnsafeDependencies(t *testing.T) {
 	}
 
 	config := DIContainerConfig{
-		ID:                       "test",
+		ID:                       "test 6",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
 		RequireInjectTag:         false,
@@ -278,6 +286,7 @@ func TestUnsafeDependencies(t *testing.T) {
 	assert.Nil(t, err, "error registering test struct singleton")
 
 	ctx := context.Background()
+	ctx, _ = SetActiveContainer(ctx, config.ID)
 	test, err := GetDependency[testStruct](ctx)
 	assert.Nil(t, err, "error getting test struct")
 
