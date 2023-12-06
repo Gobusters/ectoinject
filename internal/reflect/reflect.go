@@ -30,3 +30,16 @@ func NewStructInstance(t reflect.Type) (reflect.Value, error) {
 	// Create a new instance of the struct
 	return reflect.New(t).Elem(), nil
 }
+
+// returns true if the value is a pointer
+func IsPointer(value any) bool {
+	return reflect.ValueOf(value).Kind() == reflect.Ptr
+}
+
+// returns the value of a pointer
+func DereferencePointer(value any) any {
+	if !IsPointer(value) {
+		return value
+	}
+	return reflect.ValueOf(value).Elem().Interface()
+}

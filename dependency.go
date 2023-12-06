@@ -12,12 +12,12 @@ import (
 type InstanceFunc func(context.Context, *DIContainer) (any, error)
 
 type Dependency struct {
-	DependencyType      reflect.Type
-	DependencyName      string
-	DependencyValueType reflect.Type
-	Lifecycle           string
-	Instance            any
-	GetInstanceFunc     InstanceFunc
+	dependencyType      reflect.Type
+	dependencyName      string
+	dependencyValueType reflect.Type
+	lifecycle           string
+	instance            any
+	getInstanceFunc     InstanceFunc
 }
 
 func NewDependency[TType any, TValue any](name, lifecycle string) (Dependency, error) {
@@ -32,10 +32,10 @@ func NewDependency[TType any, TValue any](name, lifecycle string) (Dependency, e
 	}
 
 	return Dependency{
-		DependencyType:      reflect.TypeOf((*TType)(nil)).Elem(),
-		DependencyName:      name,
-		DependencyValueType: reflect.TypeOf((*TValue)(nil)).Elem(),
-		Lifecycle:           lifecycle,
+		dependencyType:      reflect.TypeOf((*TType)(nil)).Elem(),
+		dependencyName:      name,
+		dependencyValueType: reflect.TypeOf((*TValue)(nil)).Elem(),
+		lifecycle:           lifecycle,
 	}, nil
 }
 
@@ -46,11 +46,11 @@ func NewDependencyWithInsance[TType any](name string, instance any) Dependency {
 	}
 
 	return Dependency{
-		DependencyType:      reflect.TypeOf((*TType)(nil)).Elem(),
-		DependencyName:      name,
-		DependencyValueType: reflect.TypeOf(instance),
-		Lifecycle:           lifecycles.Singleton,
-		Instance:            instance,
+		dependencyType:      reflect.TypeOf((*TType)(nil)).Elem(),
+		dependencyName:      name,
+		dependencyValueType: reflect.TypeOf(instance),
+		lifecycle:           lifecycles.Singleton,
+		instance:            instance,
 	}
 }
 
@@ -80,10 +80,10 @@ func NewDependencyValue(name, lifecycle string, v any) (Dependency, error) {
 	}
 
 	return Dependency{
-		DependencyType:      t,
-		DependencyName:      name,
-		DependencyValueType: t,
-		Lifecycle:           lifecycle,
+		dependencyType:      t,
+		dependencyName:      name,
+		dependencyValueType: t,
+		lifecycle:           lifecycle,
 	}, nil
 }
 
@@ -94,9 +94,9 @@ func NewCustomFuncDependency[TType any](name string, f InstanceFunc) Dependency 
 	}
 
 	return Dependency{
-		DependencyType:  reflect.TypeOf((*TType)(nil)).Elem(),
-		DependencyName:  name,
-		Lifecycle:       lifecycles.Singleton,
-		GetInstanceFunc: f,
+		dependencyType:  reflect.TypeOf((*TType)(nil)).Elem(),
+		dependencyName:  name,
+		lifecycle:       lifecycles.Singleton,
+		getInstanceFunc: f,
 	}
 }

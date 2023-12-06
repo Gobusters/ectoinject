@@ -77,7 +77,7 @@ func RegisterNamedInstance[TType any](container *DIContainer, name string, insta
 
 	dep := NewDependencyWithInsance[TType](name, instance)
 
-	container.container[dep.DependencyName] = dep
+	container.container[dep.dependencyName] = dep
 
 	return nil
 }
@@ -97,7 +97,7 @@ func RegisterDependency[TType any, TValue any](container *DIContainer, name, lif
 		return err
 	}
 
-	container.container[dep.DependencyName] = dep
+	container.container[dep.dependencyName] = dep
 
 	return nil
 }
@@ -114,9 +114,9 @@ func RegisterNamedCustomDependencyFunc[TType any](container *DIContainer, name s
 
 	dep := NewCustomFuncDependency[TType](name, f)
 
-	dep.GetInstanceFunc = f
+	dep.getInstanceFunc = f
 
-	container.container[dep.DependencyName] = dep
+	container.container[dep.dependencyName] = dep
 
 	return nil
 }
@@ -144,7 +144,7 @@ func RegisterValue(container *DIContainer, name, lifecycle string, v any) error 
 		return err
 	}
 
-	container.container[dep.DependencyName] = dep
+	container.container[dep.dependencyName] = dep
 
 	return nil
 }

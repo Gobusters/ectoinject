@@ -1,9 +1,0 @@
-package logging
-
-const (
-	MISSING_DEPENDENCY = 1000
-	DEPENDENCY_ERROR   = 1001
-	CASTING_ERROR      = 1002
-	UNKNOWN_ERROR      = 1003
-	TYPE_ERROR         = 1004
-)
