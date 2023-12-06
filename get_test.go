@@ -276,6 +276,52 @@ func TestUnsafeDependencies(t *testing.T) {
 	assert.NotNil(t, test.dep, "Dependency was not set")
 }
 
-func TestMissingContainer(t *testing.T) {
+type bottomStruct struct {
+	Dep TestDep `inject:"foo"`
+}
 
+type topStruct struct {
+	Text  string
+	Num   int
+	Count int
+	Dep   bottomStruct `inject:""`
+}
+
+func (t *topStruct) GetString() string {
+	return t.Text
+}
+
+func (t *topStruct) GetNumber() int {
+	return t.Num
+}
+
+func (t *topStruct) IncrementCount() int {
+	t.Count++
+	return t.Count
+}
+
+func TestCircularDependency(t *testing.T) {
+	config := DIContainerConfig{
+		ID:                       "test circular",
+		AllowCaptiveDependencies: true,
+		AllowMissingDependencies: true,
+		RequireInjectTag:         false,
+		AllowUnsafeDependencies:  false,
+	}
+
+	container, err := NewDIContainer(config)
+	assert.Nil(t, err, "error creating container")
+
+	err = RegisterNamedSingleton[TestDep, topStruct](container, "foo")
+	assert.Nil(t, err, "error registering topStruct dependency singleton")
+
+	err = RegisterSingleton[bottomStruct, bottomStruct](container)
+	assert.Nil(t, err, "error registering bottomStruct dependency singleton")
+
+	ctx := context.Background()
+	ctx, _ = SetActiveContainer(ctx, config.ID)
+
+	_, err = GetDependency[TestDep](ctx, "foo")
+	assert.NotNil(t, err, "No error getting circular dependency")
+	assert.Equal(t, "circular dependency detected for 'foo'. Dependency chain: foo -> github.com/Gobusters/ectoinject.bottomStruct -> foo", err.Error())
 }

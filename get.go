@@ -269,7 +269,11 @@ func setValue(index int, isPtr, canSet bool, val reflect.Value, field reflect.St
 func checkForCircularDependency(depName string, chain []Dependency) error {
 	for _, dep := range chain {
 		if dep.dependencyName == depName {
-			return fmt.Errorf("circular dependency detected: %s", depName)
+			depChain := ""
+			for _, dep := range chain {
+				depChain += fmt.Sprintf("%s -> ", dep.dependencyName)
+			}
+			return fmt.Errorf("circular dependency detected for '%s'. Dependency chain: %s%s", depName, depChain, depName)
 		}
 	}
 	return nil
