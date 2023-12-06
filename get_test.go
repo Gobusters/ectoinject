@@ -32,10 +32,16 @@ func (t *TestDep1) IncrementCount() int {
 	return t.Count
 }
 
+type testStruct struct {
+	Dep TestDep
+}
+
+func (t *testStruct) Constructor(dep TestDep) *testStruct {
+	t.Dep = dep
+	return t
+}
+
 func TestGetSingleton(t *testing.T) {
-	type testStruct struct {
-		Dep TestDep `inject:""`
-	}
 
 	config := DIContainerConfig{
 		ID:                       "test 1",

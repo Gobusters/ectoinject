@@ -18,6 +18,11 @@ type Dependency struct {
 	lifecycle           string
 	instance            any
 	getInstanceFunc     InstanceFunc
+	constructor         reflect.Method
+}
+
+func (d Dependency) hasConstructor() bool {
+	return d.constructor != (reflect.Method{})
 }
 
 func NewDependency[TType any, TValue any](name, lifecycle string) (Dependency, error) {

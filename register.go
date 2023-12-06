@@ -3,6 +3,7 @@ package ectoinject
 import (
 	"fmt"
 
+	ectoreflect "github.com/Gobusters/ectoinject/internal/reflect"
 	"github.com/Gobusters/ectoinject/lifecycles"
 )
 
@@ -71,15 +72,9 @@ func RegisterInstance[TType any](container *DIContainer, instance any) error {
 // name: The name of the dependency
 // instance: The instance to register
 func RegisterNamedInstance[TType any](container *DIContainer, name string, instance any) error {
-	if container == nil {
-		return fmt.Errorf("container cannot be nil")
-	}
-
 	dep := NewDependencyWithInsance[TType](name, instance)
 
-	container.container[dep.dependencyName] = dep
-
-	return nil
+	return addDependencyToContainer(container, dep)
 }
 
 // RegisterDependency registers a dependency in the container
@@ -88,18 +83,12 @@ func RegisterNamedInstance[TType any](container *DIContainer, name string, insta
 // container: The container to register the dependency in
 // lifecycle: The lifecycle of the dependency
 func RegisterDependency[TType any, TValue any](container *DIContainer, name, lifecycle string) error {
-	if container == nil {
-		return fmt.Errorf("container cannot be nil")
-	}
-
 	dep, err := NewDependency[TType, TValue](name, lifecycle)
 	if err != nil {
 		return err
 	}
 
-	container.container[dep.dependencyName] = dep
-
-	return nil
+	return addDependencyToContainer(container, dep)
 }
 
 // RegisterNamedCustomDependencyFunc registers a custom dependency handler in the container
@@ -108,17 +97,11 @@ func RegisterDependency[TType any, TValue any](container *DIContainer, name, lif
 // name: The name of the dependency
 // f: The function to call to get the instance
 func RegisterNamedCustomDependencyFunc[TType any](container *DIContainer, name string, f InstanceFunc) error {
-	if container == nil {
-		return fmt.Errorf("container cannot be nil")
-	}
-
 	dep := NewCustomFuncDependency[TType](name, f)
 
 	dep.getInstanceFunc = f
 
-	container.container[dep.dependencyName] = dep
-
-	return nil
+	return addDependencyToContainer(container, dep)
 }
 
 // RegisterCustomDependencyFunc registers a custom dependency handler in the container
@@ -135,13 +118,22 @@ func RegisterCustomDependencyFunc[TType any](container *DIContainer, f InstanceF
 // lifecycle: The lifecycle of the dependency
 // v: The dependency to register
 func RegisterValue(container *DIContainer, name, lifecycle string, v any) error {
+	dep, err := NewDependencyValue(name, lifecycle, v)
+	if err != nil {
+		return err
+	}
+
+	return addDependencyToContainer(container, dep)
+}
+
+func addDependencyToContainer(container *DIContainer, dep Dependency) error {
 	if container == nil {
 		return fmt.Errorf("container cannot be nil")
 	}
 
-	dep, err := NewDependencyValue(name, lifecycle, v)
-	if err != nil {
-		return err
+	constructor, ok := ectoreflect.GetMethodByName(dep.dependencyValueType, container.ConstructorFuncName)
+	if ok {
+		dep.constructor = constructor
 	}
 
 	container.container[dep.dependencyName] = dep

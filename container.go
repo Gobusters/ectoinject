@@ -26,17 +26,14 @@ type DIContainerConfig struct {
 	RequireInjectTag         bool                     // Requires the inject tag to be present on dependencies
 	AllowUnsafeDependencies  bool                     // Allows dependencies to be injected in an unsafe manner. This allows private fields to be injected
 	LoggerConfig             *DIContainerLoggerConfig // The logger configuration to use
+	ConstructorFuncName      string                   // The name of the constructor to use
 }
 
 // Container for dependencies
 type DIContainer struct {
-	ID                       string                // The id of the container
-	container                map[string]Dependency // The container of dependencies
-	AllowCaptiveDependencies bool                  // Allows dependencies with mismatched lifecycles. For example a Singleton that depends on a Transient will treat the transient as a Singleton
-	AllowMissingDependencies bool                  // Allows dependencies to be missing
-	RequireInjectTag         bool                  // Requires the inject tag to be present on dependencies
-	AllowUnsafeDependencies  bool                  // Allows dependencies to be injected in an unsafe manner. This allows private fields to be injected
-	logger                   *logging.Logger       // The logger to use
+	DIContainerConfig                       // The configuration for the container
+	logger            *logging.Logger       // The logger to use
+	container         map[string]Dependency // The container of dependencies
 }
 
 var defaulLoggerConfig = DIContainerLoggerConfig{
@@ -55,13 +52,16 @@ func NewDIDefaultContainer() (*DIContainer, error) {
 	}
 
 	container := &DIContainer{
-		ID:                       defaultContainerID,
-		container:                make(map[string]Dependency),
-		AllowCaptiveDependencies: true,
-		AllowMissingDependencies: true,
-		RequireInjectTag:         false,
-		AllowUnsafeDependencies:  false,
-		logger:                   logger,
+		DIContainerConfig: DIContainerConfig{
+			ID:                       defaultContainerID,
+			AllowCaptiveDependencies: true,
+			AllowMissingDependencies: true,
+			RequireInjectTag:         false,
+			AllowUnsafeDependencies:  false,
+			ConstructorFuncName:      "Constructor",
+		},
+		logger:    logger,
+		container: make(map[string]Dependency),
 	}
 
 	addContainer(container)
@@ -83,19 +83,19 @@ func NewDIContainer(config DIContainerConfig) (*DIContainer, error) {
 		config.LoggerConfig = &defaulLoggerConfig
 	}
 
+	if config.ConstructorFuncName == "" {
+		config.ConstructorFuncName = "Constructor"
+	}
+
 	logger, err := logging.NewLogger(config.LoggerConfig.Prefix, config.LoggerConfig.LogLevel, config.LoggerConfig.EnableColor, config.LoggerConfig.Enabled, config.LoggerConfig.LogFunc)
 	if err != nil {
 		return nil, err
 	}
 
 	container := &DIContainer{
-		ID:                       config.ID,
-		container:                make(map[string]Dependency),
-		AllowCaptiveDependencies: config.AllowCaptiveDependencies,
-		AllowMissingDependencies: config.AllowMissingDependencies,
-		RequireInjectTag:         config.RequireInjectTag,
-		AllowUnsafeDependencies:  config.AllowUnsafeDependencies,
-		logger:                   logger,
+		DIContainerConfig: config,
+		container:         make(map[string]Dependency),
+		logger:            logger,
 	}
 
 	// if this is the first container, set it as the default

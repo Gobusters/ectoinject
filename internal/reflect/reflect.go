@@ -43,3 +43,21 @@ func DereferencePointer(value any) any {
 	}
 	return reflect.ValueOf(value).Elem().Interface()
 }
+
+// get the method of a type by name
+func GetMethodByName(t reflect.Type, name string) (reflect.Method, bool) {
+	// Check for non-pointer type
+	method, ok := t.MethodByName(name)
+	if ok {
+		return method, true
+	}
+
+	// If t is not a pointer, get the pointer to t and check
+	if t.Kind() != reflect.Ptr {
+		pointerType := reflect.PtrTo(t)
+		method, ok = pointerType.MethodByName(name)
+		return method, ok
+	}
+
+	return method, false
+}

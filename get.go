@@ -137,6 +137,11 @@ func getInstanceOfDependency(ctx context.Context, container *DIContainer, dep De
 }
 
 func createInstanceOfDependency(ctx context.Context, container *DIContainer, t reflect.Type, dep Dependency, chain []Dependency) (any, error) {
+	// use the dependency's constructor if it has one
+	if dep.hasConstructor() {
+		return getInstanceFromConstructor(ctx, container, dep, chain)
+	}
+
 	// Create a new instance of the struct
 	val, err := ectoreflect.NewStructInstance(t)
 	if err != nil {
