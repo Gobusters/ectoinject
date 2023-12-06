@@ -32,10 +32,6 @@ func (t *TestDep1) IncrementCount() int {
 	return t.Count
 }
 
-type TestStruct struct {
-	Dep TestDep `inject:""`
-}
-
 func TestGetSingleton(t *testing.T) {
 	type testStruct struct {
 		Dep TestDep `inject:""`
@@ -82,10 +78,6 @@ func TestGetSingleton(t *testing.T) {
 }
 
 func TestGetNamedSingleton(t *testing.T) {
-	type testStruct struct {
-		Dep TestDep `inject:"foo"`
-	}
-
 	config := DIContainerConfig{
 		ID:                       "test 2",
 		AllowCaptiveDependencies: true,
@@ -100,30 +92,21 @@ func TestGetNamedSingleton(t *testing.T) {
 	ctx := context.Background()
 	ctx, _ = SetActiveContainer(ctx, config.ID)
 
-	err = RegisterSingleton[testStruct, testStruct](container)
-	assert.Nil(t, err, "error registering test struct singleton")
-
-	err = RegisterSingleton[TestDep, TestDep1](container)
+	err = RegisterNamedSingleton[TestDep, TestDep1](container, "foo")
 	assert.Nil(t, err, "error registering dependency singleton")
 
-	test, err := GetDependency[testStruct](ctx)
+	testDepVal, err := GetDependency[TestDep](ctx, "foo")
 	assert.Nil(t, err, "error getting test struct")
 
-	assert.Nil(t, test.Dep, "Dependency was set")
-
-	err = RegisterNamedSingleton[TestDep, TestDep1](container, "foo")
-	assert.Nil(t, err, "error registering named dependency singleton")
-
-	test, err = GetDependency[testStruct](ctx)
-	assert.Nil(t, err, "error getting test struct")
-
-	assert.NotNil(t, test.Dep, "Dependency was not set")
-
-	val := test.Dep.GetNumber()
-	assert.Equal(t, 0, val)
-
-	val = test.Dep.IncrementCount()
+	val := testDepVal.IncrementCount()
 	assert.Equal(t, 1, val)
+
+	// get dep again
+	testDepVal, err = GetDependency[TestDep](ctx, "foo")
+	assert.Nil(t, err, "error getting test struct")
+
+	val = testDepVal.IncrementCount()
+	assert.Equal(t, 2, val)
 }
 
 func TestGetDIContainer(t *testing.T) {
@@ -291,4 +274,8 @@ func TestUnsafeDependencies(t *testing.T) {
 	assert.Nil(t, err, "error getting test struct")
 
 	assert.NotNil(t, test.dep, "Dependency was not set")
+}
+
+func TestMissingContainer(t *testing.T) {
+
 }

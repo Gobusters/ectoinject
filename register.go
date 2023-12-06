@@ -77,11 +77,6 @@ func RegisterNamedInstance[TType any](container *DIContainer, name string, insta
 
 	dep := NewDependencyWithInsance[TType](name, instance)
 
-	_, err := GetDependencyTreeFromType(container, dep.dependencyValueType, name)
-	if err != nil {
-		return fmt.Errorf("dependency '%s' has an invalid dependency tree: %w", name, err)
-	}
-
 	container.container[dep.dependencyName] = dep
 
 	return nil
@@ -95,11 +90,6 @@ func RegisterNamedInstance[TType any](container *DIContainer, name string, insta
 func RegisterDependency[TType any, TValue any](container *DIContainer, name, lifecycle string) error {
 	if container == nil {
 		return fmt.Errorf("container cannot be nil")
-	}
-
-	_, err := GetDependencyTree[TValue](container)
-	if err != nil {
-		return fmt.Errorf("dependency '%s' has an invalid dependency tree: %w", name, err)
 	}
 
 	dep, err := NewDependency[TType, TValue](name, lifecycle)
@@ -152,11 +142,6 @@ func RegisterValue(container *DIContainer, name, lifecycle string, v any) error 
 	dep, err := NewDependencyValue(name, lifecycle, v)
 	if err != nil {
 		return err
-	}
-
-	_, err = GetDependencyTreeFromType(container, dep.dependencyValueType)
-	if err != nil {
-		return fmt.Errorf("dependency '%s' has an invalid dependency tree: %w", name, err)
 	}
 
 	container.container[dep.dependencyName] = dep

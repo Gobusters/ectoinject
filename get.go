@@ -15,54 +15,78 @@ import (
 // T: The type of the dependency
 // ctx: The context to use. If you're using a scoped dependency, you must use a scoped context from ScopeContext
 // name: The name of the dependency. If not provided, the name of the interface is used
-func GetDependency[T any](ctx context.Context, name ...string) (*T, error) {
+func GetDependency[T any](ctx context.Context, name ...string) (T, error) {
+	var val T
+	typeOfT := reflect.TypeOf((*T)(nil)).Elem() // Get the type of T safely
+
 	container, err := GetActiveContainer(ctx)
 	if err != nil {
-		return nil, err
+		return val, err
 	}
 
 	depName := ""
 	if len(name) > 0 {
 		depName = name[0]
 	} else {
+		// Assuming ectoreflect.GetIntefaceName is a valid function
 		depName = ectoreflect.GetIntefaceName[T]()
 	}
 
 	dep, ok := container.container[depName]
 	if !ok {
-		return nil, fmt.Errorf("dependency for %s not found", depName)
+		return val, fmt.Errorf("dependency for %s not found", depName)
 	}
 
-	// get the dependency tree
-	tree, err := getDependencyTree[T](*container, depName)
+	dep, err = getInstanceOfDependency(ctx, container, dep, []Dependency{})
 	if err != nil {
-		return nil, err
-	}
-
-	// validate the dependency tree
-	err = tree.ValidateLifecycles(dep)
-	if err != nil {
-		return nil, err
-	}
-
-	dep, err = getInstanceOfDependency(ctx, container, dep)
-	if err != nil {
-		return nil, err
+		return val, err
 	}
 
 	if dep.instance == nil {
-		return nil, fmt.Errorf("dependency for %s is nil", depName)
+		return val, fmt.Errorf("dependency for %s is nil", depName)
 	}
 
-	val, ok := dep.instance.(*T)
+	kind := typeOfT.Kind() // Use the safe type obtained earlier
+
+	// Check for interface or pointer kind
+	if kind == reflect.Interface || kind == reflect.Ptr {
+		val, ok = dep.instance.(T)
+		if !ok {
+			return val, fmt.Errorf("dependency for %s is not of type %T, actual %T", depName, val, dep.instance)
+		}
+		return val, nil
+	}
+
+	// Assuming ectoreflect.DereferencePointer is a valid function
+	instance := ectoreflect.DereferencePointer(dep.instance)
+	val, ok = instance.(T)
 	if !ok {
-		return nil, fmt.Errorf("dependency for %s is not of type %s, actual %T", depName, depName, dep.instance)
+		return val, fmt.Errorf("dependency for %s is not of type %T, actual %T", depName, val, instance)
 	}
 
 	return val, nil
 }
 
-func getInstanceOfDependency(ctx context.Context, container *DIContainer, dep Dependency) (Dependency, error) {
+func getInstanceOfDependency(ctx context.Context, container *DIContainer, dep Dependency, chain []Dependency) (Dependency, error) {
+	defer func() {
+		container.container[dep.dependencyName] = dep // update the container with the new instance
+	}()
+
+	// check for circular dependency
+	err := checkForCircularDependency(dep.dependencyName, chain)
+	if err != nil {
+		return dep, err
+	}
+
+	// validate lifecycles
+	err = validateLifecycles(dep, chain)
+	if err != nil {
+		return dep, err
+	}
+
+	// add this dependency to the chain
+	chain = append(chain, dep)
+
 	// if the dependency is a singleton and the instance is not nil, return the instance
 	if dep.instance != nil && dep.lifecycle == lifecycles.Singleton {
 		return dep, nil
@@ -88,7 +112,7 @@ func getInstanceOfDependency(ctx context.Context, container *DIContainer, dep De
 		if !ok {
 			// create a new instance
 			var err error
-			instance, err = createInstanceOfDependency(ctx, container, dep.dependencyValueType, dep, "")
+			instance, err = createInstanceOfDependency(ctx, container, dep.dependencyValueType, dep, chain)
 			if err != nil {
 				return dep, err
 			}
@@ -102,7 +126,7 @@ func getInstanceOfDependency(ctx context.Context, container *DIContainer, dep De
 	}
 
 	// create an instance of the dependency
-	instance, err := createInstanceOfDependency(ctx, container, dep.dependencyValueType, dep, "")
+	instance, err := createInstanceOfDependency(ctx, container, dep.dependencyValueType, dep, chain)
 	if err != nil {
 		return dep, err
 	}
@@ -112,7 +136,7 @@ func getInstanceOfDependency(ctx context.Context, container *DIContainer, dep De
 	return dep, nil
 }
 
-func createInstanceOfDependency(ctx context.Context, container *DIContainer, t reflect.Type, dep Dependency, parentLifeCycle string) (any, error) {
+func createInstanceOfDependency(ctx context.Context, container *DIContainer, t reflect.Type, dep Dependency, chain []Dependency) (any, error) {
 	// Create a new instance of the struct
 	val, err := ectoreflect.NewStructInstance(t)
 	if err != nil {
@@ -131,7 +155,7 @@ func createInstanceOfDependency(ctx context.Context, container *DIContainer, t r
 	structPtr.Elem().Set(reflect.ValueOf(valInterface))
 
 	// Set dependencies
-	instanceWithDeps, err := setDependencies(ctx, container, dep, structPtr.Interface())
+	instanceWithDeps, err := setDependencies(ctx, container, dep, structPtr.Interface(), chain)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +163,7 @@ func createInstanceOfDependency(ctx context.Context, container *DIContainer, t r
 	return instanceWithDeps, nil
 }
 
-func setDependencies(ctx context.Context, container *DIContainer, dep Dependency, v any) (any, error) {
+func setDependencies(ctx context.Context, container *DIContainer, dep Dependency, v any, chain []Dependency) (any, error) {
 	val := reflect.ValueOf(v)
 	if val.Kind() != reflect.Ptr || val.IsNil() {
 		return nil, fmt.Errorf("instance of dependency '%s' must be a pointer to a struct but is %s", dep.dependencyName, val.Kind())
@@ -197,7 +221,7 @@ func setDependencies(ctx context.Context, container *DIContainer, dep Dependency
 			return nil, fmt.Errorf(msg)
 		}
 
-		childDep, err := getInstanceOfDependency(ctx, container, childDep)
+		childDep, err := getInstanceOfDependency(ctx, container, childDep, chain)
 		if err != nil {
 			return nil, err
 		}
@@ -242,40 +266,33 @@ func setValue(index int, isPtr, canSet bool, val reflect.Value, field reflect.St
 	}
 }
 
-func validateLifecycles(child Dependency, parent Dependency) error {
-	if parent.lifecycle == lifecycles.Singleton {
-		// child must be a singleton
-		if child.lifecycle != lifecycles.Singleton {
-			return fmt.Errorf("dependency '%s' is registered as a singleton, but its dependency '%s' is a %s", parent.dependencyName, child.dependencyName, child.lifecycle)
+func checkForCircularDependency(depName string, chain []Dependency) error {
+	for _, dep := range chain {
+		if dep.dependencyName == depName {
+			return fmt.Errorf("circular dependency detected: %s", depName)
+		}
+	}
+	return nil
+}
+
+func validateLifecycles(dep Dependency, chain []Dependency) error {
+	if dep.lifecycle == lifecycles.Transient {
+		// check if any of the parent dependencies are scoped or singleton
+		for _, parent := range chain {
+			if parent.lifecycle == lifecycles.Scoped || parent.lifecycle == lifecycles.Singleton {
+				return fmt.Errorf("captive dependency error: transient dependency %s has %s dependency on %s", dep.dependencyName, parent.lifecycle, parent.dependencyName)
+			}
 		}
 	}
 
-	if parent.lifecycle == lifecycles.Scoped {
-		// child must be a singleton or scoped
-		if child.lifecycle != lifecycles.Singleton && child.lifecycle != lifecycles.Scoped {
-			return fmt.Errorf("dependency '%s' is registered as a scoped, but its dependency '%s' is a %s", parent.dependencyName, child.dependencyName, child.lifecycle)
+	if dep.lifecycle == lifecycles.Scoped {
+		// check if any of the parent dependencies are singleton
+		for _, parent := range chain {
+			if parent.lifecycle == lifecycles.Singleton {
+				return fmt.Errorf("captive dependency error: scoped dependency %s has %s dependency on %s", dep.dependencyName, parent.lifecycle, parent.dependencyName)
+			}
 		}
 	}
 
 	return nil
-}
-
-var dependencyMap = map[string]DependencyTree{}
-
-func getDependencyTree[T any](container DIContainer, depName string) (DependencyTree, error) {
-	// check if the dependency tree is already cached
-	if tree, ok := dependencyMap[depName]; ok {
-		return tree, nil
-	}
-
-	// get the dependency tree
-	tree, err := GetDependencyTree[T](&container, depName)
-	if err != nil {
-		return nil, err
-	}
-
-	// cache the dependency tree
-	dependencyMap[depName] = tree
-
-	return tree, nil
 }
