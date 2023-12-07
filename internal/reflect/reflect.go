@@ -3,6 +3,7 @@ package reflect
 import (
 	"fmt"
 	"reflect"
+	"unsafe"
 )
 
 // returns the name of an interface as `modulePath.interfaceName`
@@ -14,6 +15,11 @@ func GetIntefaceName[T any]() string {
 
 // returns the name of a reflect.Type as `modulePath.typeName`
 func GetReflectTypeName(t reflect.Type) string {
+	// if t is a pointer, dereference it
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
 	pkgPath := t.PkgPath()
 	name := t.Name()
 
@@ -31,20 +37,7 @@ func NewStructInstance(t reflect.Type) (reflect.Value, error) {
 	return reflect.New(t).Elem(), nil
 }
 
-// returns true if the value is a pointer
-func IsPointer(value any) bool {
-	return reflect.ValueOf(value).Kind() == reflect.Ptr
-}
-
-// returns the value of a pointer
-func DereferencePointer(value any) any {
-	if !IsPointer(value) {
-		return value
-	}
-	return reflect.ValueOf(value).Elem().Interface()
-}
-
-// get the method of a type by name
+// get the method of a type by name. If the type is not a pointer, get the pointer to the type and check
 func GetMethodByName(t reflect.Type, name string) (reflect.Method, bool) {
 	// Check for non-pointer type
 	method, ok := t.MethodByName(name)
@@ -60,4 +53,117 @@ func GetMethodByName(t reflect.Type, name string) (reflect.Method, bool) {
 	}
 
 	return method, false
+}
+
+func CastType(t reflect.Type, v any) (reflect.Value, error) {
+	var zeroValue reflect.Value // Zero value of T
+
+	vType := reflect.TypeOf(v)
+
+	// if v is already the correct type, return it
+	if vType == t {
+		return reflect.ValueOf(v), nil
+	}
+
+	isTPtr := t.Kind() == reflect.Ptr
+	isVPtr := vType.Kind() == reflect.Ptr
+
+	// if T is a pointer and v is not, get the address of v
+	if isTPtr && !isVPtr {
+		rv := reflect.ValueOf(v)
+		if rv.CanAddr() {
+			v = rv.Addr().Interface()
+		} else {
+			// Cannot take the address of v
+			return zeroValue, fmt.Errorf("cannot take address of the provided value '%s' to convert to %s", vType.Name(), t.Name())
+		}
+	}
+
+	// if T is not a pointer and v is, dereference v
+	if !isTPtr && isVPtr {
+		v = reflect.ValueOf(v).Elem().Interface()
+	}
+
+	result := reflect.ValueOf(v)
+	if result.Type() != t {
+		// refetch the type
+		vType = reflect.TypeOf(v)
+		return zeroValue, fmt.Errorf("value of type '%s' is not of type '%s'", vType.Name(), t.Name())
+	}
+
+	return result, nil
+}
+
+func Cast[T any](v any) (T, error) {
+	var zeroValue T
+	tType := reflect.TypeOf((*T)(nil)).Elem()
+
+	result, err := CastType(tType, v)
+	if err != nil {
+		return zeroValue, err
+	}
+
+	return result.Interface().(T), nil
+}
+
+func CastValue[T any](v reflect.Value) (T, error) {
+	var zeroValue T
+
+	// if v is already the correct type, return it
+	result, ok := v.Interface().(T)
+	if ok {
+		return result, nil
+	}
+
+	// if v is not the correct type, cast it
+	tType := reflect.TypeOf((*T)(nil)).Elem()
+	castV, err := CastType(tType, v.Interface())
+	if err != nil {
+		return zeroValue, err
+	}
+
+	return castV.Interface().(T), nil
+}
+
+func SetField(target reflect.Value, field reflect.StructField, value reflect.Value) error {
+	// get field index
+	index := field.Index
+
+	// get the value of the field
+	fieldVal := target.FieldByIndex(index)
+
+	// is the field a pointer?
+	isFieldPtr := field.Type.Kind() == reflect.Ptr
+
+	// is the value a pointer?
+	isValuePtr := value.Kind() == reflect.Ptr
+
+	// can the field be set?
+	canSet := fieldVal.CanSet()
+
+	// if the field is a pointer and the value is not, get the address of the value
+	if isFieldPtr && !isValuePtr {
+		rv := reflect.ValueOf(value)
+		if !rv.CanAddr() {
+			return fmt.Errorf("cannot take address of the provided value '%s' to set to field '%s'", value.Type().Name(), field.Name)
+		}
+
+		value = rv.Addr()
+	}
+
+	// if the field is not a pointer and the value is, dereference the value
+	if !isFieldPtr && isValuePtr {
+		value = value.Elem()
+	}
+
+	if canSet {
+		// Set the value directly if it's settable
+		fieldVal.Set(value)
+	} else {
+		// If not settable, use unsafe to set the value
+		ptr := reflect.NewAt(field.Type, unsafe.Pointer(fieldVal.UnsafeAddr())).Elem()
+		ptr.Set(value)
+	}
+
+	return nil
 }

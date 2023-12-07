@@ -46,9 +46,9 @@ func generateID() string {
 	return strconv.FormatInt(time.Now().UnixNano(), 10)
 }
 
-// ScopeContext scopes the context to for use with scoped dependencies. To prevent memory leaks, the context must be canceled or UnscopeContext must be called when the scope is finished
+// scopeContext scopes the context to for use with scoped dependencies. To prevent memory leaks, the context must be canceled or UnscopeContext must be called when the scope is finished
 // ctx: The context to scope
-func ScopeContext(ctx context.Context) context.Context {
+func scopeContext(ctx context.Context) context.Context {
 	// create a new Scoped container id
 	id := generateID()
 
@@ -65,9 +65,9 @@ func ScopeContext(ctx context.Context) context.Context {
 	return ctx
 }
 
-// UnscopeContext unscopes the context from a scoped dependency. This releases the cache for the scope and should be called when the scope is finished
+// unscopeContext unscopes the context from a scoped dependency. This releases the cache for the scope and should be called when the scope is finished
 // ctx: The context to unscope
-func UnscopeContext(ctx context.Context) context.Context {
+func unscopeContext(ctx context.Context) context.Context {
 	id := getScopedID(ctx)
 	// remove the Scoped container id from the context
 	ctx = context.WithValue(ctx, contextScopedContainerIDKey, "")

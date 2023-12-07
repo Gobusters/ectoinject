@@ -16,13 +16,40 @@ type Dependency struct {
 	dependencyName      string
 	dependencyValueType reflect.Type
 	lifecycle           string
-	instance            any
+	value               reflect.Value
 	getInstanceFunc     InstanceFunc
 	constructor         reflect.Method
 }
 
+func (d *Dependency) setInstance(instance any) error {
+	// get casted instance
+	val, err := ectoreflect.CastType(d.dependencyValueType, instance)
+	if err != nil {
+		return fmt.Errorf("failed to cast instance for dependency '%s': %w", d.dependencyName, err)
+	}
+
+	d.value = val
+
+	return nil
+}
+
+func (d *Dependency) hasValue() bool {
+	return d.value != (reflect.Value{})
+}
+
 func (d Dependency) hasConstructor() bool {
 	return d.constructor != (reflect.Method{})
+}
+
+func (d *Dependency) createNewStructValue() error {
+	val, err := ectoreflect.NewStructInstance(d.dependencyValueType)
+	if err != nil {
+		return fmt.Errorf("failed to create new struct instance for dependency '%s': %w", d.dependencyName, err)
+	}
+
+	d.value = val
+
+	return nil
 }
 
 func NewDependency[TType any, TValue any](name, lifecycle string) (Dependency, error) {
@@ -55,7 +82,7 @@ func NewDependencyWithInsance[TType any](name string, instance any) Dependency {
 		dependencyName:      name,
 		dependencyValueType: reflect.TypeOf(instance),
 		lifecycle:           lifecycles.Singleton,
-		instance:            instance,
+		value:               reflect.ValueOf(instance),
 	}
 }
 

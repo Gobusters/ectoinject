@@ -19,6 +19,13 @@ type TestDep1 struct {
 	Count int
 }
 
+func (t *TestDep1) Constructor() *TestDep1 {
+	t.Text = "test"
+	t.Num = 0
+	t.Count = 0
+	return t
+}
+
 func (t *TestDep1) GetString() string {
 	return t.Text
 }
@@ -34,11 +41,6 @@ func (t *TestDep1) IncrementCount() int {
 
 type testStruct struct {
 	Dep TestDep
-}
-
-func (t *testStruct) Constructor(dep TestDep) *testStruct {
-	t.Dep = dep
-	return t
 }
 
 func TestGetSingleton(t *testing.T) {
@@ -169,8 +171,6 @@ func TestGetScoped(t *testing.T) {
 	// scope ctx
 	ctx := context.Background()
 	ctx, _ = SetActiveContainer(ctx, config.ID)
-	ctx = ScopeContext(ctx)
-	defer UnscopeContext(ctx)
 
 	// get dep
 	test, err := GetDependency[testStruct](ctx)
@@ -192,8 +192,6 @@ func TestGetScoped(t *testing.T) {
 	// create new scope
 	ctx2 := context.Background()
 	ctx2, _ = SetActiveContainer(ctx2, config.ID)
-	ctx2 = ScopeContext(ctx2)
-	defer UnscopeContext(ctx2)
 
 	// get dep
 	test, err = GetDependency[testStruct](ctx2)
@@ -230,8 +228,8 @@ func TestGetTransient(t *testing.T) {
 	// scope ctx
 	ctx := context.Background()
 	ctx, _ = SetActiveContainer(ctx, config.ID)
-	ctx = ScopeContext(ctx)
-	defer UnscopeContext(ctx)
+	ctx = scopeContext(ctx)
+	defer unscopeContext(ctx)
 
 	// get dep
 	test, err := GetDependency[testStruct](ctx)
@@ -330,4 +328,40 @@ func TestCircularDependency(t *testing.T) {
 	_, err = GetDependency[TestDep](ctx, "foo")
 	assert.NotNil(t, err, "No error getting circular dependency")
 	assert.Equal(t, "circular dependency detected for 'foo'. Dependency chain: foo -> github.com/Gobusters/ectoinject.bottomStruct -> foo", err.Error())
+}
+
+type testConstructorStruct struct {
+	Val string
+}
+
+func (t *testConstructorStruct) Constructor(dep TestDep) *testConstructorStruct {
+	t.Val = dep.GetString()
+	return t
+}
+
+func TestConstructor(t *testing.T) {
+	config := DIContainerConfig{
+		ID:                       "test constructor",
+		AllowCaptiveDependencies: true,
+		AllowMissingDependencies: true,
+		RequireInjectTag:         false,
+		AllowUnsafeDependencies:  false,
+	}
+
+	container, err := NewDIContainer(config)
+	assert.Nil(t, err, "error creating container")
+
+	err = RegisterSingleton[TestDep, TestDep1](container)
+	assert.Nil(t, err, "error registering dependency singleton")
+
+	err = RegisterSingleton[testConstructorStruct, testConstructorStruct](container)
+	assert.Nil(t, err, "error registering testConstructorStruct dependency singleton")
+
+	ctx := context.Background()
+	ctx, _ = SetActiveContainer(ctx, config.ID)
+
+	testStruct, err := GetDependency[testConstructorStruct](ctx)
+	assert.Nil(t, err, "error getting testConstructorStruct")
+
+	assert.Equal(t, "test", testStruct.Val)
 }

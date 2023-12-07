@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"unsafe"
 
 	"github.com/Gobusters/ectoinject/internal/cache"
 	ectoreflect "github.com/Gobusters/ectoinject/internal/reflect"
@@ -16,58 +15,62 @@ import (
 // ctx: The context to use. If you're using a scoped dependency, you must use a scoped context from ScopeContext
 // name: The name of the dependency. If not provided, the name of the interface is used
 func GetDependency[T any](ctx context.Context, name ...string) (T, error) {
+	ctx = scopeContext(ctx)   // starts a scope for the dependency tree
+	defer unscopeContext(ctx) // ends the scope for the dependency tree
 	var val T
-	typeOfT := reflect.TypeOf((*T)(nil)).Elem() // Get the type of T safely
 
 	container, err := GetActiveContainer(ctx)
 	if err != nil {
 		return val, err
 	}
 
+	reflectName := ectoreflect.GetIntefaceName[T]()
+
 	depName := ""
 	if len(name) > 0 {
 		depName = name[0]
 	} else {
 		// Assuming ectoreflect.GetIntefaceName is a valid function
-		depName = ectoreflect.GetIntefaceName[T]()
+		depName = reflectName
 	}
 
+	// if the dependency is DIContainer, return the container
+	if reflectName == ectoreflect.GetIntefaceName[DIContainer]() {
+		id := defaultContainerID
+		if depName != "" {
+			id = depName
+		}
+		depContainer := getContainer(id)
+		return ectoreflect.Cast[T](depContainer)
+	}
+
+	// check if the dependency is registered
 	dep, ok := container.container[depName]
 	if !ok {
 		return val, fmt.Errorf("dependency for %s not found", depName)
 	}
 
-	dep, err = getInstanceOfDependency(ctx, container, dep, []Dependency{})
+	// get the instance of the dependency
+	dep, err = getDependency(ctx, container, dep, []Dependency{})
 	if err != nil {
 		return val, err
 	}
 
-	if dep.instance == nil {
+	// check if the dependency has a value
+	if !dep.hasValue() {
 		return val, fmt.Errorf("dependency for %s is nil", depName)
 	}
 
-	kind := typeOfT.Kind() // Use the safe type obtained earlier
-
-	// Check for interface or pointer kind
-	if kind == reflect.Interface || kind == reflect.Ptr {
-		val, ok = dep.instance.(T)
-		if !ok {
-			return val, fmt.Errorf("dependency for %s is not of type %T, actual %T", depName, val, dep.instance)
-		}
-		return val, nil
-	}
-
-	// Assuming ectoreflect.DereferencePointer is a valid function
-	instance := ectoreflect.DereferencePointer(dep.instance)
-	val, ok = instance.(T)
-	if !ok {
-		return val, fmt.Errorf("dependency for %s is not of type %T, actual %T", depName, val, instance)
+	// cast the value to T
+	val, err = ectoreflect.CastValue[T](dep.value)
+	if err != nil {
+		return val, fmt.Errorf("failed to cast dependency for %s: %w", depName, err)
 	}
 
 	return val, nil
 }
 
-func getInstanceOfDependency(ctx context.Context, container *DIContainer, dep Dependency, chain []Dependency) (Dependency, error) {
+func getDependency(ctx context.Context, container *DIContainer, dep Dependency, chain []Dependency) (Dependency, error) {
 	defer func() {
 		container.container[dep.dependencyName] = dep // update the container with the new instance
 	}()
@@ -87,8 +90,8 @@ func getInstanceOfDependency(ctx context.Context, container *DIContainer, dep De
 	// add this dependency to the chain
 	chain = append(chain, dep)
 
-	// if the dependency is a singleton and the instance is not nil, return the instance
-	if dep.instance != nil && dep.lifecycle == lifecycles.Singleton {
+	// if the dependency is a singleton and dependency has a value already, return the value
+	if dep.hasValue() && dep.lifecycle == lifecycles.Singleton {
 		return dep, nil
 	}
 
@@ -99,8 +102,16 @@ func getInstanceOfDependency(ctx context.Context, container *DIContainer, dep De
 			return dep, err
 		}
 
-		dep.instance = instance
+		err = dep.setInstance(instance)
+		if err != nil {
+			return dep, err
+		}
 		return dep, nil
+	}
+
+	// use the dependency's constructor if it has one
+	if dep.hasConstructor() {
+		return useDependencyConstructor(ctx, container, dep, chain)
 	}
 
 	// if the dependency is a scoped, check the scoped cache
@@ -112,7 +123,7 @@ func getInstanceOfDependency(ctx context.Context, container *DIContainer, dep De
 		if !ok {
 			// create a new instance
 			var err error
-			instance, err = createInstanceOfDependency(ctx, container, dep.dependencyValueType, dep, chain)
+			instance, err = getDependencyWithDependencies(ctx, container, dep, chain)
 			if err != nil {
 				return dep, err
 			}
@@ -121,72 +132,59 @@ func getInstanceOfDependency(ctx context.Context, container *DIContainer, dep De
 			cache.AddScopedInstance(scopedID, dep.dependencyName, instance)
 		}
 
-		dep.instance = instance
+		err = dep.setInstance(instance)
+		if err != nil {
+			return dep, err
+		}
 		return dep, nil
 	}
 
 	// create an instance of the dependency
-	instance, err := createInstanceOfDependency(ctx, container, dep.dependencyValueType, dep, chain)
+	dep, err = getDependencyWithDependencies(ctx, container, dep, chain)
 	if err != nil {
 		return dep, err
 	}
 
-	dep.instance = instance
+	return dep, nil
+}
+
+func getDependencyWithDependencies(ctx context.Context, container *DIContainer, dep Dependency, chain []Dependency) (Dependency, error) {
+	// create a new struct value for the dependency
+	err := dep.createNewStructValue()
+	if err != nil {
+		return dep, err
+	}
+
+	// Set dependencies
+	dep, err = setDependencies(ctx, container, dep, chain)
+	if err != nil {
+		return dep, err
+	}
 
 	return dep, nil
 }
 
-func createInstanceOfDependency(ctx context.Context, container *DIContainer, t reflect.Type, dep Dependency, chain []Dependency) (any, error) {
-	// use the dependency's constructor if it has one
-	if dep.hasConstructor() {
-		return getInstanceFromConstructor(ctx, container, dep, chain)
-	}
+func setDependencies(ctx context.Context, container *DIContainer, dep Dependency, chain []Dependency) (Dependency, error) {
+	val := dep.value
 
-	// Create a new instance of the struct
-	val, err := ectoreflect.NewStructInstance(t)
-	if err != nil {
-		return nil, err
-	}
-
-	valInterface := val.Interface()
-
-	// Ensure the value is a struct
-	if reflect.ValueOf(valInterface).Kind() != reflect.Struct {
-		return nil, fmt.Errorf("createInstance: casted value must be a struct, got %T", valInterface)
-	}
-
-	// Take the address of the struct to pass a pointer to setDependencies
-	structPtr := reflect.New(reflect.TypeOf(valInterface))
-	structPtr.Elem().Set(reflect.ValueOf(valInterface))
-
-	// Set dependencies
-	instanceWithDeps, err := setDependencies(ctx, container, dep, structPtr.Interface(), chain)
-	if err != nil {
-		return nil, err
-	}
-
-	return instanceWithDeps, nil
-}
-
-func setDependencies(ctx context.Context, container *DIContainer, dep Dependency, v any, chain []Dependency) (any, error) {
-	val := reflect.ValueOf(v)
-	if val.Kind() != reflect.Ptr || val.IsNil() {
-		return nil, fmt.Errorf("instance of dependency '%s' must be a pointer to a struct but is %s", dep.dependencyName, val.Kind())
+	// check if the dependency is a pointer
+	if val.Kind() != reflect.Ptr {
+		if !val.CanAddr() {
+			return dep, fmt.Errorf("failed to get address of struct instance for dependency '%s'", dep.dependencyName)
+		}
+		// if the dependency is not a pointer, get the pointer to the value
+		val = val.Addr()
 	}
 
 	val = val.Elem()
 	if val.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("instance of dependency '%s' must be a pointer to a struct but is %s", dep.dependencyName, val.Kind())
+		return dep, fmt.Errorf("instance of dependency '%s' must be a pointer to a struct but is %s", dep.dependencyName, val.Kind())
 	}
 
 	t := val.Type()
 	for i := 0; i < val.NumField(); i++ {
 		field := t.Field(i)
-		tag := field.Tag.Get("inject")
-		isPtr := field.Type.Kind() == reflect.Ptr
-		if isPtr {
-			field.Type = field.Type.Elem()
-		}
+		tag := field.Tag.Get(container.InjectTagName)
 
 		if (tag == "" && container.RequireInjectTag) || tag == "-" {
 			continue // skip this field
@@ -207,7 +205,8 @@ func setDependencies(ctx context.Context, container *DIContainer, dep Dependency
 				id = tag
 			}
 			depContainer := getContainer(id)
-			setValue(i, isPtr, canSet, val, field, *depContainer)
+			// setValue(i, isPtr, canSet, val, field, reflect.ValueOf(depContainer))
+			ectoreflect.SetField(val, field, reflect.ValueOf(depContainer))
 			continue
 		}
 
@@ -223,52 +222,21 @@ func setDependencies(ctx context.Context, container *DIContainer, dep Dependency
 				container.logger.Warn(msg)
 				continue
 			}
-			return nil, fmt.Errorf(msg)
+			return dep, fmt.Errorf(msg)
 		}
 
-		childDep, err := getInstanceOfDependency(ctx, container, childDep, chain)
+		childDep, err := getDependency(ctx, container, childDep, chain)
 		if err != nil {
-			return nil, err
+			return dep, err
 		}
 
 		container.container[typeName] = childDep
 
-		setValue(i, isPtr, canSet, val, field, childDep.instance)
+		ectoreflect.SetField(val, field, childDep.value)
 	}
 
-	return v, nil
-}
-
-func setValue(index int, isPtr, canSet bool, val reflect.Value, field reflect.StructField, value any) {
-	fieldVal := val.Field(index)
-
-	// Convert `value` to a reflect.Value
-	reflectValue := reflect.ValueOf(value)
-
-	if isPtr {
-		// Create a new pointer to the value
-		ptr := reflect.New(reflect.TypeOf(value))
-		ptr.Elem().Set(reflectValue)
-		reflectValue = ptr
-
-		if reflectValue.Kind() == reflect.Ptr {
-			if reflectValue.IsNil() {
-				// ignore nil pointers
-				return
-			}
-			// Use the value the pointer points to
-			reflectValue = reflectValue.Elem()
-		}
-	}
-
-	if canSet {
-		// Set the value directly if it's settable
-		fieldVal.Set(reflectValue)
-	} else {
-		// If not settable, use unsafe to set the value
-		ptr := reflect.NewAt(field.Type, unsafe.Pointer(fieldVal.UnsafeAddr())).Elem()
-		ptr.Set(reflectValue)
-	}
+	dep.setInstance(val.Interface())
+	return dep, nil
 }
 
 func checkForCircularDependency(depName string, chain []Dependency) error {

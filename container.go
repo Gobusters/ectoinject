@@ -27,6 +27,7 @@ type DIContainerConfig struct {
 	AllowUnsafeDependencies  bool                     // Allows dependencies to be injected in an unsafe manner. This allows private fields to be injected
 	LoggerConfig             *DIContainerLoggerConfig // The logger configuration to use
 	ConstructorFuncName      string                   // The name of the constructor to use
+	InjectTagName            string                   // The name of the inject tag to use
 }
 
 // Container for dependencies
@@ -59,6 +60,7 @@ func NewDIDefaultContainer() (*DIContainer, error) {
 			RequireInjectTag:         false,
 			AllowUnsafeDependencies:  false,
 			ConstructorFuncName:      "Constructor",
+			InjectTagName:            "inject",
 		},
 		logger:    logger,
 		container: make(map[string]Dependency),
@@ -85,6 +87,10 @@ func NewDIContainer(config DIContainerConfig) (*DIContainer, error) {
 
 	if config.ConstructorFuncName == "" {
 		config.ConstructorFuncName = "Constructor"
+	}
+
+	if config.InjectTagName == "" {
+		config.InjectTagName = "inject"
 	}
 
 	logger, err := logging.NewLogger(config.LoggerConfig.Prefix, config.LoggerConfig.LogLevel, config.LoggerConfig.EnableColor, config.LoggerConfig.Enabled, config.LoggerConfig.LogFunc)
