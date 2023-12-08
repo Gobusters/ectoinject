@@ -56,42 +56,46 @@ func GetMethodByName(t reflect.Type, name string) (reflect.Method, bool) {
 }
 
 func CastType(t reflect.Type, v any) (reflect.Value, error) {
-	var zeroValue reflect.Value // Zero value of T
+	var zeroValue reflect.Value
+	vValue := reflect.ValueOf(v)
+	vType := vValue.Type()
 
-	vType := reflect.TypeOf(v)
-
-	// if v is already the correct type, return it
-	if vType == t {
-		return reflect.ValueOf(v), nil
+	// if v is already the correct type or implements the interface, return it
+	if vType == t || (t.Kind() == reflect.Interface && vValue.Type().Implements(t)) {
+		return vValue, nil
 	}
 
-	isTPtr := t.Kind() == reflect.Ptr
+	isTInterface := t.Kind() == reflect.Interface
+	isTPtr := isTInterface || t.Kind() == reflect.Ptr
 	isVPtr := vType.Kind() == reflect.Ptr
 
-	// if T is a pointer and v is not, get the address of v
+	// if T is a pointer or interface and v is not, create an addressable copy of v
 	if isTPtr && !isVPtr {
-		rv := reflect.ValueOf(v)
-		if rv.CanAddr() {
-			v = rv.Addr().Interface()
-		} else {
-			// Cannot take the address of v
-			return zeroValue, fmt.Errorf("cannot take address of the provided value '%s' to convert to %s", vType.Name(), t.Name())
-		}
+		// Create a new value of the type of v
+		newV := reflect.New(vType)
+
+		// Set the value of v to the new value
+		newV.Elem().Set(vValue)
+
+		// Use the address of the new value
+		vValue = newV
 	}
 
-	// if T is not a pointer and v is, dereference v
+	// if T is not a pointer or interface and v is, dereference v
 	if !isTPtr && isVPtr {
-		v = reflect.ValueOf(v).Elem().Interface()
+		vValue = vValue.Elem()
 	}
 
-	result := reflect.ValueOf(v)
-	if result.Type() != t {
-		// refetch the type
-		vType = reflect.TypeOf(v)
-		return zeroValue, fmt.Errorf("value of type '%s' is not of type '%s'", vType.Name(), t.Name())
+	// Convert v to the target type t
+	if isTInterface {
+		if !vValue.Type().Implements(t) {
+			return zeroValue, fmt.Errorf("value of type '%s' does not implement interface '%s'", vValue.Type().String(), t.String())
+		}
+	} else if vValue.Type() != t {
+		return zeroValue, fmt.Errorf("value of type '%s' is not of type '%s'", vValue.Type().String(), t.String())
 	}
 
-	return result, nil
+	return vValue, nil
 }
 
 func Cast[T any](v any) (T, error) {
@@ -106,25 +110,6 @@ func Cast[T any](v any) (T, error) {
 	return result.Interface().(T), nil
 }
 
-func CastValue[T any](v reflect.Value) (T, error) {
-	var zeroValue T
-
-	// if v is already the correct type, return it
-	result, ok := v.Interface().(T)
-	if ok {
-		return result, nil
-	}
-
-	// if v is not the correct type, cast it
-	tType := reflect.TypeOf((*T)(nil)).Elem()
-	castV, err := CastType(tType, v.Interface())
-	if err != nil {
-		return zeroValue, err
-	}
-
-	return castV.Interface().(T), nil
-}
-
 func SetField(target reflect.Value, field reflect.StructField, value reflect.Value) error {
 	// get field index
 	index := field.Index
@@ -132,31 +117,12 @@ func SetField(target reflect.Value, field reflect.StructField, value reflect.Val
 	// get the value of the field
 	fieldVal := target.FieldByIndex(index)
 
-	// is the field an interface?
-	isFieldInterface := field.Type.Kind() == reflect.Interface
-
-	// is the field a pointer?
-	isFieldPtrOrInterface := isFieldInterface || field.Type.Kind() == reflect.Ptr
-
-	// is the value a pointer?
-	isValuePtr := value.Kind() == reflect.Ptr
-
 	// can the field be set?
 	canSet := fieldVal.CanSet()
 
-	// if the field is a pointer and the value is not, get the address of the value
-	if isFieldPtrOrInterface && !isValuePtr {
-		rv := reflect.ValueOf(value)
-		if !rv.CanAddr() {
-			return fmt.Errorf("cannot take address of the provided value '%s' to set to field '%s'", value.Type().Name(), field.Name)
-		}
-
-		value = rv.Addr()
-	}
-
-	// if the field is not a pointer and the value is, dereference the value
-	if !isFieldPtrOrInterface && isValuePtr {
-		value = value.Elem()
+	value, err := CastType(field.Type, value.Interface())
+	if err != nil {
+		return err
 	}
 
 	if canSet {

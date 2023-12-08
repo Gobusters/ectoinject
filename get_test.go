@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Gobusters/ectoinject/container"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -45,7 +46,7 @@ type testStruct struct {
 
 func TestGetSingleton(t *testing.T) {
 
-	config := DIContainerConfig{
+	config := container.DIContainerConfig{
 		ID:                       "test 1",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -86,7 +87,7 @@ func TestGetSingleton(t *testing.T) {
 }
 
 func TestGetNamedSingleton(t *testing.T) {
-	config := DIContainerConfig{
+	config := container.DIContainerConfig{
 		ID:                       "test 2",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -100,17 +101,17 @@ func TestGetNamedSingleton(t *testing.T) {
 	ctx := context.Background()
 	ctx, _ = SetActiveContainer(ctx, config.ID)
 
-	err = RegisterNamedSingleton[TestDep, TestDep1](container, "foo")
+	err = RegisterSingleton[TestDep, TestDep1](container, "foo")
 	assert.Nil(t, err, "error registering dependency singleton")
 
-	testDepVal, err := GetDependency[TestDep](ctx, "foo")
+	testDepVal, err := GetNamedDependency[TestDep](ctx, "foo")
 	assert.Nil(t, err, "error getting test struct")
 
 	val := testDepVal.IncrementCount()
 	assert.Equal(t, 1, val)
 
 	// get dep again
-	testDepVal, err = GetDependency[TestDep](ctx, "foo")
+	testDepVal, err = GetNamedDependency[TestDep](ctx, "foo")
 	assert.Nil(t, err, "error getting test struct")
 
 	val = testDepVal.IncrementCount()
@@ -119,10 +120,10 @@ func TestGetNamedSingleton(t *testing.T) {
 
 func TestGetDIContainer(t *testing.T) {
 	type testStruct struct {
-		Dep EctoContainer `inject:""`
+		Dep DIContainer `inject:"test 3"`
 	}
 
-	config := DIContainerConfig{
+	config := container.DIContainerConfig{
 		ID:                       "test 3",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -150,7 +151,7 @@ func TestGetScoped(t *testing.T) {
 		Dep TestDep `inject:""`
 	}
 
-	config := DIContainerConfig{
+	config := container.DIContainerConfig{
 		ID:                       "test 4",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -207,7 +208,7 @@ func TestGetTransient(t *testing.T) {
 		Dep TestDep `inject:""`
 	}
 
-	config := DIContainerConfig{
+	config := container.DIContainerConfig{
 		ID:                       "test 5",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -228,8 +229,6 @@ func TestGetTransient(t *testing.T) {
 	// scope ctx
 	ctx := context.Background()
 	ctx, _ = SetActiveContainer(ctx, config.ID)
-	ctx = scopeContext(ctx)
-	defer unscopeContext(ctx)
 
 	// get dep
 	test, err := GetDependency[testStruct](ctx)
@@ -254,7 +253,7 @@ func TestUnsafeDependencies(t *testing.T) {
 		dep TestDep `inject:""`
 	}
 
-	config := DIContainerConfig{
+	config := container.DIContainerConfig{
 		ID:                       "test 6",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -305,7 +304,7 @@ func (t *topStruct) IncrementCount() int {
 }
 
 func TestCircularDependency(t *testing.T) {
-	config := DIContainerConfig{
+	config := container.DIContainerConfig{
 		ID:                       "test circular",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -316,7 +315,7 @@ func TestCircularDependency(t *testing.T) {
 	container, err := NewDIContainer(config)
 	assert.Nil(t, err, "error creating container")
 
-	err = RegisterNamedSingleton[TestDep, topStruct](container, "foo")
+	err = RegisterSingleton[TestDep, topStruct](container, "foo")
 	assert.Nil(t, err, "error registering topStruct dependency singleton")
 
 	err = RegisterSingleton[bottomStruct, bottomStruct](container)
@@ -325,7 +324,7 @@ func TestCircularDependency(t *testing.T) {
 	ctx := context.Background()
 	ctx, _ = SetActiveContainer(ctx, config.ID)
 
-	_, err = GetDependency[TestDep](ctx, "foo")
+	_, err = GetNamedDependency[TestDep](ctx, "foo")
 	assert.NotNil(t, err, "No error getting circular dependency")
 	assert.Equal(t, "circular dependency detected for 'foo'. Dependency chain: foo -> github.com/Gobusters/ectoinject.bottomStruct -> foo", err.Error())
 }
@@ -340,7 +339,7 @@ func (t *testConstructorStruct) Constructor(dep TestDep) *testConstructorStruct 
 }
 
 func TestConstructor(t *testing.T) {
-	config := DIContainerConfig{
+	config := container.DIContainerConfig{
 		ID:                       "test constructor",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,

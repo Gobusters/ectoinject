@@ -1,13 +1,13 @@
-package ectoinject
+package container
 
-import (
-	"fmt"
-)
+import "fmt"
+
+var defaultContainerID = "default"
 
 // singleton instance of the DIContainers
 var containers = map[string]*EctoContainer{}
 
-func addContainer(container *EctoContainer) error {
+func AddContainer(container *EctoContainer) error {
 	if container == nil {
 		return fmt.Errorf("container cannot be nil")
 	}
@@ -16,12 +16,16 @@ func addContainer(container *EctoContainer) error {
 		return fmt.Errorf("container with id '%s' already exists", container.ID)
 	}
 
+	if len(containers) == 0 {
+		defaultContainerID = container.ID
+	}
+
 	containers[container.ID] = container
 
 	return nil
 }
 
-func getContainer(id string) *EctoContainer {
+func GetContainer(id string) *EctoContainer {
 	if id == "" {
 		return nil
 	}
@@ -32,8 +36,4 @@ func getContainer(id string) *EctoContainer {
 	}
 
 	return container
-}
-
-func getContainerCount() int {
-	return len(containers)
 }
