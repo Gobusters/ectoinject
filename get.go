@@ -30,7 +30,6 @@ func GetDependency[T any](ctx context.Context, name ...string) (T, error) {
 	if len(name) > 0 {
 		depName = name[0]
 	} else {
-		// Assuming ectoreflect.GetIntefaceName is a valid function
 		depName = reflectName
 	}
 
