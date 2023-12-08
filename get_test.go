@@ -119,7 +119,7 @@ func TestGetNamedSingleton(t *testing.T) {
 
 func TestGetDIContainer(t *testing.T) {
 	type testStruct struct {
-		Dep DIContainer `inject:""`
+		Dep EctoContainer `inject:""`
 	}
 
 	config := DIContainerConfig{

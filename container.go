@@ -1,6 +1,7 @@
 package ectoinject
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/Gobusters/ectoinject/internal/logging"
@@ -31,7 +32,7 @@ type DIContainerConfig struct {
 }
 
 // Container for dependencies
-type DIContainer struct {
+type EctoContainer struct {
 	DIContainerConfig                       // The configuration for the container
 	logger            *logging.Logger       // The logger to use
 	container         map[string]Dependency // The container of dependencies
@@ -46,13 +47,13 @@ var defaulLoggerConfig = DIContainerLoggerConfig{
 }
 
 // NewDIDefaultContainer creates a new container with the default configuration
-func NewDIDefaultContainer() (*DIContainer, error) {
+func NewDIDefaultContainer() (*EctoContainer, error) {
 	logger, err := logging.NewLogger(defaulLoggerConfig.Prefix, defaulLoggerConfig.LogLevel, defaulLoggerConfig.EnableColor, defaulLoggerConfig.Enabled, defaulLoggerConfig.LogFunc)
 	if err != nil {
 		return nil, err
 	}
 
-	container := &DIContainer{
+	container := &EctoContainer{
 		DIContainerConfig: DIContainerConfig{
 			ID:                       defaultContainerID,
 			AllowCaptiveDependencies: true,
@@ -72,7 +73,7 @@ func NewDIDefaultContainer() (*DIContainer, error) {
 }
 
 // NewDIContainer creates a new container
-func NewDIContainer(config DIContainerConfig) (*DIContainer, error) {
+func NewDIContainer(config DIContainerConfig) (*EctoContainer, error) {
 	if config.ID == "" {
 		return nil, fmt.Errorf("id cannot be empty")
 	}
@@ -98,7 +99,7 @@ func NewDIContainer(config DIContainerConfig) (*DIContainer, error) {
 		return nil, err
 	}
 
-	container := &DIContainer{
+	container := &EctoContainer{
 		DIContainerConfig: config,
 		container:         make(map[string]Dependency),
 		logger:            logger,
@@ -113,4 +114,31 @@ func NewDIContainer(config DIContainerConfig) (*DIContainer, error) {
 	addContainer(container)
 
 	return container, nil
+}
+
+func (container *EctoContainer) Get(ctx context.Context, name string) (any, error) {
+	ctx = scopeContext(ctx)   // starts a scope for the dependency tree
+	defer unscopeContext(ctx) // ends the scope for the dependency tree
+
+	// check if the dependency is registered
+	dep, ok := container.container[name]
+	if !ok {
+		return nil, fmt.Errorf("dependency for %s not found", name)
+	}
+
+	// get the instance of the dependency
+	dep, err := getDependency(ctx, container, dep, []Dependency{})
+	if err != nil {
+		return nil, err
+	}
+
+	// check if the dependency has a value
+	if !dep.HasValue() {
+		return nil, fmt.Errorf("dependency for %s is nil", name)
+	}
+
+	// return the value
+	val := dep.GetValue().Interface()
+
+	return val, nil
 }

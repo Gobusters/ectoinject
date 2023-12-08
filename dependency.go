@@ -9,9 +9,9 @@ import (
 	"github.com/Gobusters/ectoinject/lifecycles"
 )
 
-type InstanceFunc func(context.Context, *DIContainer) (any, error)
+type InstanceFunc func(context.Context, *EctoContainer) (any, error)
 
-type Dependency struct {
+type EctoDependency struct {
 	dependencyType      reflect.Type
 	dependencyName      string
 	dependencyValueType reflect.Type
@@ -19,13 +19,14 @@ type Dependency struct {
 	value               reflect.Value
 	getInstanceFunc     InstanceFunc
 	constructor         reflect.Method
+	constructorName     string
 }
 
-func (d *Dependency) setInstance(instance any) error {
-	// get casted instance
+func (d *EctoDependency) SetValue(instance any) error {
+	// get casted value
 	val, err := ectoreflect.CastType(d.dependencyValueType, instance)
 	if err != nil {
-		return fmt.Errorf("failed to cast instance for dependency '%s': %w", d.dependencyName, err)
+		return fmt.Errorf("failed to cast value for dependency '%s': %w", d.dependencyName, err)
 	}
 
 	d.value = val
@@ -33,26 +34,43 @@ func (d *Dependency) setInstance(instance any) error {
 	return nil
 }
 
-func (d *Dependency) hasValue() bool {
+func (d *EctoDependency) GetValue() reflect.Value {
+	return d.value
+}
+
+func (d *EctoDependency) HasValue() bool {
 	return d.value != (reflect.Value{})
 }
 
-func (d Dependency) hasConstructor() bool {
+func (d *EctoDependency) HasConstructor() bool {
 	return d.constructor != (reflect.Method{})
 }
-
-func (d *Dependency) createNewStructValue() error {
-	val, err := ectoreflect.NewStructInstance(d.dependencyValueType)
-	if err != nil {
-		return fmt.Errorf("failed to create new struct instance for dependency '%s': %w", d.dependencyName, err)
-	}
-
-	d.value = val
-
-	return nil
+func (d *EctoDependency) GetConstructor() reflect.Method {
+	return d.constructor
 }
 
-func NewDependency[TType any, TValue any](name, lifecycle string) (Dependency, error) {
+func (d *EctoDependency) GetInstanceFunc() InstanceFunc {
+	return d.getInstanceFunc
+}
+
+func (d *EctoDependency) GetDependencyType() reflect.Type {
+	return d.dependencyType
+}
+
+func (d *EctoDependency) GetDependencyName() string {
+	return d.dependencyName
+}
+
+func (d *EctoDependency) GetDependencyValueType() reflect.Type {
+	return d.dependencyValueType
+}
+
+func (d *EctoDependency) GetLifecycle() string {
+	return d.lifecycle
+}
+
+func NewDependency[TType any](name, lifecycle, constructorName string, valueType reflect.Type, getInstanceFunc InstanceFunc) (Dependency, error) {
+	dep := &EctoDependency{}
 	if name == "" {
 		// if a name is not provided, use the name of the interface
 		name = ectoreflect.GetIntefaceName[TType]()
@@ -60,15 +78,27 @@ func NewDependency[TType any, TValue any](name, lifecycle string) (Dependency, e
 
 	// Ensure the lifecycle is valid
 	if !lifecycles.IsValid(lifecycle) {
-		return Dependency{}, fmt.Errorf("invalid lifecycle '%s' must be one of %v", lifecycle, lifecycles.Lifecycles)
+		return dep, fmt.Errorf("invalid lifecycle '%s' must be one of %v", lifecycle, lifecycles.Lifecycles)
 	}
 
-	return Dependency{
-		dependencyType:      reflect.TypeOf((*TType)(nil)).Elem(),
-		dependencyName:      name,
-		dependencyValueType: reflect.TypeOf((*TValue)(nil)).Elem(),
-		lifecycle:           lifecycle,
-	}, nil
+	dep.dependencyType = reflect.TypeOf((*TType)(nil)).Elem()
+	dep.dependencyName = name
+	dep.lifecycle = lifecycle
+	dep.constructorName = constructorName
+	dep.dependencyValueType = valueType
+
+	if constructorName != "" {
+		constructor, ok := ectoreflect.GetMethodByName(dep.GetDependencyValueType(), constructorName)
+		if ok {
+			dep.constructor = constructor
+		}
+	}
+
+	if getInstanceFunc != nil {
+		dep.getInstanceFunc = getInstanceFunc
+	}
+
+	return dep, nil
 }
 
 func NewDependencyWithInsance[TType any](name string, instance any) Dependency {
@@ -77,7 +107,7 @@ func NewDependencyWithInsance[TType any](name string, instance any) Dependency {
 		name = ectoreflect.GetIntefaceName[TType]()
 	}
 
-	return Dependency{
+	return &EctoDependency{
 		dependencyType:      reflect.TypeOf((*TType)(nil)).Elem(),
 		dependencyName:      name,
 		dependencyValueType: reflect.TypeOf(instance),
@@ -89,7 +119,7 @@ func NewDependencyWithInsance[TType any](name string, instance any) Dependency {
 func NewDependencyValue(name, lifecycle string, v any) (Dependency, error) {
 	// Ensure the lifecycle is valid
 	if !lifecycles.IsValid(lifecycle) {
-		return Dependency{}, fmt.Errorf("invalid lifecycle '%s' must be one of %v", lifecycle, lifecycles.Lifecycles)
+		return &EctoDependency{}, fmt.Errorf("invalid lifecycle '%s' must be one of %v", lifecycle, lifecycles.Lifecycles)
 	}
 
 	var t reflect.Type
@@ -103,7 +133,7 @@ func NewDependencyValue(name, lifecycle string, v any) (Dependency, error) {
 
 	// Ensure t is a struct type
 	if t.Kind() != reflect.Struct {
-		return Dependency{}, fmt.Errorf("type '%s' is not a struct", t.Name())
+		return &EctoDependency{}, fmt.Errorf("type '%s' is not a struct", t.Name())
 	}
 
 	if name == "" {
@@ -111,7 +141,7 @@ func NewDependencyValue(name, lifecycle string, v any) (Dependency, error) {
 		name = ectoreflect.GetReflectTypeName(t)
 	}
 
-	return Dependency{
+	return &EctoDependency{
 		dependencyType:      t,
 		dependencyName:      name,
 		dependencyValueType: t,
@@ -125,7 +155,7 @@ func NewCustomFuncDependency[TType any](name string, f InstanceFunc) Dependency 
 		name = ectoreflect.GetIntefaceName[TType]()
 	}
 
-	return Dependency{
+	return &EctoDependency{
 		dependencyType:  reflect.TypeOf((*TType)(nil)).Elem(),
 		dependencyName:  name,
 		lifecycle:       lifecycles.Singleton,

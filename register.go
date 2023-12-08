@@ -2,8 +2,8 @@ package ectoinject
 
 import (
 	"fmt"
+	"reflect"
 
-	ectoreflect "github.com/Gobusters/ectoinject/internal/reflect"
 	"github.com/Gobusters/ectoinject/lifecycles"
 )
 
@@ -11,7 +11,7 @@ import (
 // TType: The type of the dependency
 // TValue: The implementation of the dependency
 // container: The container to register the dependency in
-func RegisterSingleton[TType any, TValue any](container *DIContainer) error {
+func RegisterSingleton[TType any, TValue any](container *EctoContainer) error {
 	return RegisterDependency[TType, TValue](container, "", lifecycles.Singleton)
 }
 
@@ -19,7 +19,7 @@ func RegisterSingleton[TType any, TValue any](container *DIContainer) error {
 // TType: The type of the dependency
 // TValue: The implementation of the dependency
 // container: The container to register the dependency in
-func RegisterScoped[TType any, TValue any](container *DIContainer) error {
+func RegisterScoped[TType any, TValue any](container *EctoContainer) error {
 	return RegisterDependency[TType, TValue](container, "", lifecycles.Scoped)
 }
 
@@ -27,7 +27,7 @@ func RegisterScoped[TType any, TValue any](container *DIContainer) error {
 // TType: The type of the dependency
 // TValue: The implementation of the dependency
 // container: The container to register the dependency in
-func RegisterTransient[TType any, TValue any](container *DIContainer) error {
+func RegisterTransient[TType any, TValue any](container *EctoContainer) error {
 	return RegisterDependency[TType, TValue](container, "", lifecycles.Transient)
 }
 
@@ -36,7 +36,7 @@ func RegisterTransient[TType any, TValue any](container *DIContainer) error {
 // TValue: The implementation of the dependency
 // container: The container to register the dependency in
 // name: The name of the dependency
-func RegisterNamedSingleton[TType any, TValue any](container *DIContainer, name string) error {
+func RegisterNamedSingleton[TType any, TValue any](container *EctoContainer, name string) error {
 	return RegisterDependency[TType, TValue](container, name, lifecycles.Singleton)
 }
 
@@ -45,7 +45,7 @@ func RegisterNamedSingleton[TType any, TValue any](container *DIContainer, name 
 // TValue: The implementation of the dependency
 // container: The container to register the dependency in
 // name: The name of the dependency
-func RegisterNamedScoped[TType any, TValue any](container *DIContainer, name string) error {
+func RegisterNamedScoped[TType any, TValue any](container *EctoContainer, name string) error {
 	return RegisterDependency[TType, TValue](container, name, lifecycles.Scoped)
 }
 
@@ -54,7 +54,7 @@ func RegisterNamedScoped[TType any, TValue any](container *DIContainer, name str
 // TValue: The implementation of the dependency
 // container: The container to register the dependency in
 // name: The name of the dependency
-func RegisterNamedTransient[TType any, TValue any](container *DIContainer, name string) error {
+func RegisterNamedTransient[TType any, TValue any](container *EctoContainer, name string) error {
 	return RegisterDependency[TType, TValue](container, name, lifecycles.Transient)
 }
 
@@ -62,7 +62,7 @@ func RegisterNamedTransient[TType any, TValue any](container *DIContainer, name 
 // TType: The type of the dependency
 // container: The container to register the dependency in
 // instance: The instance to register
-func RegisterInstance[TType any](container *DIContainer, instance any) error {
+func RegisterInstance[TType any](container *EctoContainer, instance any) error {
 	return RegisterNamedInstance[TType](container, "", instance)
 }
 
@@ -71,7 +71,7 @@ func RegisterInstance[TType any](container *DIContainer, instance any) error {
 // container: The container to register the dependency in
 // name: The name of the dependency
 // instance: The instance to register
-func RegisterNamedInstance[TType any](container *DIContainer, name string, instance any) error {
+func RegisterNamedInstance[TType any](container *EctoContainer, name string, instance any) error {
 	dep := NewDependencyWithInsance[TType](name, instance)
 
 	return addDependencyToContainer(container, dep)
@@ -82,8 +82,9 @@ func RegisterNamedInstance[TType any](container *DIContainer, name string, insta
 // TValue: The implementation of the dependency
 // container: The container to register the dependency in
 // lifecycle: The lifecycle of the dependency
-func RegisterDependency[TType any, TValue any](container *DIContainer, name, lifecycle string) error {
-	dep, err := NewDependency[TType, TValue](name, lifecycle)
+func RegisterDependency[TType any, TValue any](container *EctoContainer, name, lifecycle string) error {
+	valueType := reflect.TypeOf((*TValue)(nil)).Elem()
+	dep, err := NewDependency[TType](name, lifecycle, container.ConstructorFuncName, valueType, nil)
 	if err != nil {
 		return err
 	}
@@ -96,10 +97,8 @@ func RegisterDependency[TType any, TValue any](container *DIContainer, name, lif
 // container: The container to register the dependency in
 // name: The name of the dependency
 // f: The function to call to get the instance
-func RegisterNamedCustomDependencyFunc[TType any](container *DIContainer, name string, f InstanceFunc) error {
+func RegisterNamedCustomDependencyFunc[TType any](container *EctoContainer, name string, f InstanceFunc) error {
 	dep := NewCustomFuncDependency[TType](name, f)
-
-	dep.getInstanceFunc = f
 
 	return addDependencyToContainer(container, dep)
 }
@@ -108,7 +107,7 @@ func RegisterNamedCustomDependencyFunc[TType any](container *DIContainer, name s
 // TType: The type of the dependency
 // container: The container to register the dependency in
 // f: The function to call to get the instance
-func RegisterCustomDependencyFunc[TType any](container *DIContainer, f InstanceFunc) error {
+func RegisterCustomDependencyFunc[TType any](container *EctoContainer, f InstanceFunc) error {
 	return RegisterNamedCustomDependencyFunc[TType](container, "", f)
 }
 
@@ -117,7 +116,7 @@ func RegisterCustomDependencyFunc[TType any](container *DIContainer, f InstanceF
 // name: The name of the dependency
 // lifecycle: The lifecycle of the dependency
 // v: The dependency to register
-func RegisterValue(container *DIContainer, name, lifecycle string, v any) error {
+func RegisterValue(container *EctoContainer, name, lifecycle string, v any) error {
 	dep, err := NewDependencyValue(name, lifecycle, v)
 	if err != nil {
 		return err
@@ -126,17 +125,11 @@ func RegisterValue(container *DIContainer, name, lifecycle string, v any) error 
 	return addDependencyToContainer(container, dep)
 }
 
-func addDependencyToContainer(container *DIContainer, dep Dependency) error {
+func addDependencyToContainer(container *EctoContainer, dep Dependency) error {
 	if container == nil {
 		return fmt.Errorf("container cannot be nil")
 	}
-
-	constructor, ok := ectoreflect.GetMethodByName(dep.dependencyValueType, container.ConstructorFuncName)
-	if ok {
-		dep.constructor = constructor
-	}
-
-	container.container[dep.dependencyName] = dep
+	container.container[dep.GetDependencyName()] = dep
 
 	return nil
 }

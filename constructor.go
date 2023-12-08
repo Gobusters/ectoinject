@@ -8,8 +8,8 @@ import (
 	ectoreflect "github.com/Gobusters/ectoinject/internal/reflect"
 )
 
-func useDependencyConstructor(ctx context.Context, container *DIContainer, dep Dependency, chain []Dependency) (Dependency, error) {
-	constructor := dep.constructor
+func useDependencyConstructor(ctx context.Context, container *EctoContainer, dep Dependency, chain []Dependency) (Dependency, error) {
+	constructor := dep.GetConstructor()
 
 	// get the number of args for the constructor
 	argCount := constructor.Type.NumIn()
@@ -47,7 +47,7 @@ func useDependencyConstructor(ctx context.Context, container *DIContainer, dep D
 		// check if the param is a dependency
 		childDep, ok := container.container[paramTypeName]
 		if !ok {
-			return dep, fmt.Errorf("dependency '%s' has unregistered dependency '%s' in '%s' func", dep.dependencyName, paramTypeName, constructor.Name)
+			return dep, fmt.Errorf("dependency '%s' has unregistered dependency '%s' in '%s' func", dep.GetDependencyName(), paramTypeName, constructor.Name)
 		}
 
 		// get the instance of the dependency
@@ -57,18 +57,18 @@ func useDependencyConstructor(ctx context.Context, container *DIContainer, dep D
 		}
 
 		// add the dependency to the args
-		args[i] = reflect.ValueOf(childDep.value)
+		args[i] = childDep.GetValue()
 	}
 
 	// call the constructor with the args
 	result := constructor.Func.Call(args)
 
 	if len(result) == 0 {
-		return dep, fmt.Errorf("constructor '%s' on dependnecy '%s' did not return an instance", constructor.Name, dep.dependencyName)
+		return dep, fmt.Errorf("constructor '%s' on dependnecy '%s' did not return an instance", constructor.Name, dep.GetDependencyName())
 	}
 
-	dep.value = result[0]
-	container.container[dep.dependencyName] = dep
+	dep.SetValue(result[0])
+	container.container[dep.GetDependencyName()] = dep
 
 	if len(result) == 1 {
 		return dep, nil

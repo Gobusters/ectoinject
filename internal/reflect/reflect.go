@@ -132,8 +132,11 @@ func SetField(target reflect.Value, field reflect.StructField, value reflect.Val
 	// get the value of the field
 	fieldVal := target.FieldByIndex(index)
 
+	// is the field an interface?
+	isFieldInterface := field.Type.Kind() == reflect.Interface
+
 	// is the field a pointer?
-	isFieldPtr := field.Type.Kind() == reflect.Ptr
+	isFieldPtrOrInterface := isFieldInterface || field.Type.Kind() == reflect.Ptr
 
 	// is the value a pointer?
 	isValuePtr := value.Kind() == reflect.Ptr
@@ -142,7 +145,7 @@ func SetField(target reflect.Value, field reflect.StructField, value reflect.Val
 	canSet := fieldVal.CanSet()
 
 	// if the field is a pointer and the value is not, get the address of the value
-	if isFieldPtr && !isValuePtr {
+	if isFieldPtrOrInterface && !isValuePtr {
 		rv := reflect.ValueOf(value)
 		if !rv.CanAddr() {
 			return fmt.Errorf("cannot take address of the provided value '%s' to set to field '%s'", value.Type().Name(), field.Name)
@@ -152,7 +155,7 @@ func SetField(target reflect.Value, field reflect.StructField, value reflect.Val
 	}
 
 	// if the field is not a pointer and the value is, dereference the value
-	if !isFieldPtr && isValuePtr {
+	if !isFieldPtrOrInterface && isValuePtr {
 		value = value.Elem()
 	}
 

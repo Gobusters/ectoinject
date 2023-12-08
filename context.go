@@ -27,7 +27,7 @@ func SetActiveContainer(ctx context.Context, id string) (context.Context, error)
 
 // GetActiveContainer gets the active container from the context
 // ctx: The context to get the active container from
-func GetActiveContainer(ctx context.Context) (*DIContainer, error) {
+func GetActiveContainer(ctx context.Context) (*EctoContainer, error) {
 	id, _ := ctx.Value(contextContainerIDKey).(string)
 
 	if id == "" {

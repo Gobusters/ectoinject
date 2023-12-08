@@ -34,7 +34,7 @@ func GetDependency[T any](ctx context.Context, name ...string) (T, error) {
 	}
 
 	// if the dependency is DIContainer, return the container
-	if reflectName == ectoreflect.GetIntefaceName[DIContainer]() {
+	if reflectName == ectoreflect.GetIntefaceName[EctoContainer]() {
 		id := defaultContainerID
 		if depName != "" {
 			id = depName
@@ -43,39 +43,26 @@ func GetDependency[T any](ctx context.Context, name ...string) (T, error) {
 		return ectoreflect.Cast[T](depContainer)
 	}
 
-	// check if the dependency is registered
-	dep, ok := container.container[depName]
-	if !ok {
-		return val, fmt.Errorf("dependency for %s not found", depName)
-	}
-
-	// get the instance of the dependency
-	dep, err = getDependency(ctx, container, dep, []Dependency{})
+	depValue, err := container.Get(ctx, depName)
 	if err != nil {
 		return val, err
 	}
 
-	// check if the dependency has a value
-	if !dep.hasValue() {
-		return val, fmt.Errorf("dependency for %s is nil", depName)
-	}
-
-	// cast the value to T
-	val, err = ectoreflect.CastValue[T](dep.value)
+	val, err = ectoreflect.Cast[T](depValue)
 	if err != nil {
-		return val, fmt.Errorf("failed to cast dependency for %s: %w", depName, err)
+		return val, err
 	}
 
 	return val, nil
 }
 
-func getDependency(ctx context.Context, container *DIContainer, dep Dependency, chain []Dependency) (Dependency, error) {
+func getDependency(ctx context.Context, container *EctoContainer, dep Dependency, chain []Dependency) (Dependency, error) {
 	defer func() {
-		container.container[dep.dependencyName] = dep // update the container with the new instance
+		container.container[dep.GetDependencyName()] = dep // update the container with the new instance
 	}()
 
 	// check for circular dependency
-	err := checkForCircularDependency(dep.dependencyName, chain)
+	err := checkForCircularDependency(dep.GetDependencyName(), chain)
 	if err != nil {
 		return dep, err
 	}
@@ -90,18 +77,19 @@ func getDependency(ctx context.Context, container *DIContainer, dep Dependency, 
 	chain = append(chain, dep)
 
 	// if the dependency is a singleton and dependency has a value already, return the value
-	if dep.hasValue() && dep.lifecycle == lifecycles.Singleton {
+	if dep.HasValue() && dep.GetLifecycle() == lifecycles.Singleton {
 		return dep, nil
 	}
 
 	// if the user has provided a GetInstanceFunc, use that to get the instance
-	if dep.getInstanceFunc != nil {
-		instance, err := dep.getInstanceFunc(ctx, container)
+	instanceFunc := dep.GetInstanceFunc()
+	if dep.GetInstanceFunc() != nil {
+		instance, err := instanceFunc(ctx, container)
 		if err != nil {
 			return dep, err
 		}
 
-		err = dep.setInstance(instance)
+		err = dep.SetValue(instance)
 		if err != nil {
 			return dep, err
 		}
@@ -109,16 +97,16 @@ func getDependency(ctx context.Context, container *DIContainer, dep Dependency, 
 	}
 
 	// use the dependency's constructor if it has one
-	if dep.hasConstructor() {
+	if dep.HasConstructor() {
 		return useDependencyConstructor(ctx, container, dep, chain)
 	}
 
 	// if the dependency is a scoped, check the scoped cache
-	if dep.lifecycle == lifecycles.Scoped {
+	if dep.GetLifecycle() == lifecycles.Scoped {
 		scopedID := getScopedID(ctx)
 
 		// check the scoped cache for an instance
-		instance, ok := cache.GetScopedInstance(scopedID, dep.dependencyName)
+		instance, ok := cache.GetScopedInstance(scopedID, dep.GetDependencyName())
 		if !ok {
 			// create a new instance
 			var err error
@@ -128,10 +116,10 @@ func getDependency(ctx context.Context, container *DIContainer, dep Dependency, 
 			}
 
 			// add the instance to the scoped cache
-			cache.AddScopedInstance(scopedID, dep.dependencyName, instance)
+			cache.AddScopedInstance(scopedID, dep.GetDependencyName(), instance)
 		}
 
-		err = dep.setInstance(instance)
+		err = dep.SetValue(instance)
 		if err != nil {
 			return dep, err
 		}
@@ -147,12 +135,18 @@ func getDependency(ctx context.Context, container *DIContainer, dep Dependency, 
 	return dep, nil
 }
 
-func getDependencyWithDependencies(ctx context.Context, container *DIContainer, dep Dependency, chain []Dependency) (Dependency, error) {
+func getDependencyWithDependencies(ctx context.Context, container *EctoContainer, dep Dependency, chain []Dependency) (Dependency, error) {
+	valueType := dep.GetDependencyValueType()
 	// create a new struct value for the dependency
-	err := dep.createNewStructValue()
-	if err != nil {
-		return dep, err
+	if valueType.Kind() != reflect.Struct {
+		return dep, fmt.Errorf("dependency '%s' has type '%s' which is not a struct", dep.GetDependencyName(), valueType.Name())
 	}
+
+	val, err := ectoreflect.NewStructInstance(valueType)
+	if err != nil {
+		return dep, fmt.Errorf("failed to create new struct instance for dependency '%s': %w", dep.GetDependencyName(), err)
+	}
+	dep.SetValue(val)
 
 	// Set dependencies
 	dep, err = setDependencies(ctx, container, dep, chain)
@@ -163,13 +157,13 @@ func getDependencyWithDependencies(ctx context.Context, container *DIContainer, 
 	return dep, nil
 }
 
-func setDependencies(ctx context.Context, container *DIContainer, dep Dependency, chain []Dependency) (Dependency, error) {
-	val := dep.value
+func setDependencies(ctx context.Context, container *EctoContainer, dep Dependency, chain []Dependency) (Dependency, error) {
+	val := dep.GetValue()
 
 	// check if the dependency is a pointer
 	if val.Kind() != reflect.Ptr {
 		if !val.CanAddr() {
-			return dep, fmt.Errorf("failed to get address of struct instance for dependency '%s'", dep.dependencyName)
+			return dep, fmt.Errorf("failed to get address of struct instance for dependency '%s'", dep.GetDependencyName())
 		}
 		// if the dependency is not a pointer, get the pointer to the value
 		val = val.Addr()
@@ -177,7 +171,7 @@ func setDependencies(ctx context.Context, container *DIContainer, dep Dependency
 
 	val = val.Elem()
 	if val.Kind() != reflect.Struct {
-		return dep, fmt.Errorf("instance of dependency '%s' must be a pointer to a struct but is %s", dep.dependencyName, val.Kind())
+		return dep, fmt.Errorf("instance of dependency '%s' must be a pointer to a struct but is %s", dep.GetDependencyName(), val.Kind())
 	}
 
 	t := val.Type()
@@ -198,7 +192,7 @@ func setDependencies(ctx context.Context, container *DIContainer, dep Dependency
 		reflectName := ectoreflect.GetReflectTypeName(field.Type)
 
 		// check if dep is DIContainer
-		if reflectName == ectoreflect.GetIntefaceName[DIContainer]() {
+		if reflectName == ectoreflect.GetIntefaceName[EctoContainer]() {
 			id := defaultContainerID
 			if tag != "" {
 				id = tag
@@ -216,7 +210,7 @@ func setDependencies(ctx context.Context, container *DIContainer, dep Dependency
 
 		childDep, ok := container.container[typeName]
 		if !ok {
-			msg := fmt.Sprintf("%s has a dependency on %s, but it is not registered", dep.dependencyName, typeName)
+			msg := fmt.Sprintf("%s has a dependency on %s, but it is not registered", dep.GetDependencyName(), typeName)
 			if container.AllowMissingDependencies {
 				container.logger.Warn(msg)
 				continue
@@ -231,19 +225,19 @@ func setDependencies(ctx context.Context, container *DIContainer, dep Dependency
 
 		container.container[typeName] = childDep
 
-		ectoreflect.SetField(val, field, childDep.value)
+		ectoreflect.SetField(val, field, childDep.GetValue())
 	}
 
-	dep.setInstance(val.Interface())
+	dep.SetValue(val.Interface())
 	return dep, nil
 }
 
 func checkForCircularDependency(depName string, chain []Dependency) error {
 	for _, dep := range chain {
-		if dep.dependencyName == depName {
+		if dep.GetDependencyName() == depName {
 			depChain := ""
 			for _, dep := range chain {
-				depChain += fmt.Sprintf("%s -> ", dep.dependencyName)
+				depChain += fmt.Sprintf("%s -> ", dep.GetDependencyName())
 			}
 			return fmt.Errorf("circular dependency detected for '%s'. Dependency chain: %s%s", depName, depChain, depName)
 		}
@@ -252,20 +246,20 @@ func checkForCircularDependency(depName string, chain []Dependency) error {
 }
 
 func validateLifecycles(dep Dependency, chain []Dependency) error {
-	if dep.lifecycle == lifecycles.Transient {
+	if dep.GetLifecycle() == lifecycles.Transient {
 		// check if any of the parent dependencies are scoped or singleton
 		for _, parent := range chain {
-			if parent.lifecycle == lifecycles.Scoped || parent.lifecycle == lifecycles.Singleton {
-				return fmt.Errorf("captive dependency error: transient dependency %s has %s dependency on %s", dep.dependencyName, parent.lifecycle, parent.dependencyName)
+			if parent.GetLifecycle() == lifecycles.Scoped || parent.GetLifecycle() == lifecycles.Singleton {
+				return fmt.Errorf("captive dependency error: transient dependency %s has %s dependency on %s", dep.GetDependencyName(), parent.GetLifecycle(), parent.GetDependencyName())
 			}
 		}
 	}
 
-	if dep.lifecycle == lifecycles.Scoped {
+	if dep.GetLifecycle() == lifecycles.Scoped {
 		// check if any of the parent dependencies are singleton
 		for _, parent := range chain {
-			if parent.lifecycle == lifecycles.Singleton {
-				return fmt.Errorf("captive dependency error: scoped dependency %s has %s dependency on %s", dep.dependencyName, parent.lifecycle, parent.dependencyName)
+			if parent.GetLifecycle() == lifecycles.Singleton {
+				return fmt.Errorf("captive dependency error: scoped dependency %s has %s dependency on %s", dep.GetDependencyName(), parent.GetLifecycle(), parent.GetDependencyName())
 			}
 		}
 	}

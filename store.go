@@ -5,9 +5,9 @@ import (
 )
 
 // singleton instance of the DIContainers
-var containers = map[string]*DIContainer{}
+var containers = map[string]*EctoContainer{}
 
-func addContainer(container *DIContainer) error {
+func addContainer(container *EctoContainer) error {
 	if container == nil {
 		return fmt.Errorf("container cannot be nil")
 	}
@@ -21,7 +21,7 @@ func addContainer(container *DIContainer) error {
 	return nil
 }
 
-func getContainer(id string) *DIContainer {
+func getContainer(id string) *EctoContainer {
 	if id == "" {
 		return nil
 	}
