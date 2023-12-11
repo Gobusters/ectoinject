@@ -40,6 +40,16 @@ func (container *EctoContainer) Get(ctx context.Context, name string) (any, erro
 	ctx = scope.ScopeContext(ctx)   // starts a scope for the dependency tree
 	defer scope.UnscopeContext(ctx) // ends the scope for the dependency tree
 
+	if name == "" {
+		return nil, fmt.Errorf("dependency name cannot be empty")
+	}
+
+	// check if the dependency is the container
+	containerDep, ok := getContainerDependency(container, name)
+	if ok {
+		return containerDep, nil
+	}
+
 	// check if the dependency is registered
 	dep, ok := container.container[name]
 	if !ok {
@@ -110,21 +120,20 @@ func getDependency(ctx context.Context, container *EctoContainer, dep dependency
 	if dep.GetLifecycle() == lifecycles.Scoped {
 		scopedID := scope.GetScopedID(ctx)
 
-		// check the scoped cache for an instance
-		var ok bool
-		dep, ok = scope.GetScopedDependency(scopedID, dep.GetName())
-		if !ok {
-			// create a new instance
-			var err error
-			dep, err = getDependencyWithDependencies(ctx, container, dep, chain)
-			if err != nil {
-				return dep, err
-			}
-
-			// add the instance to the scoped cache
-			scope.AddScopedDependency(scopedID, dep)
+		// check the scoped cache
+		scopedDep, ok := scope.GetScopedDependency(scopedID, dep.GetName())
+		if ok {
+			return scopedDep, nil // return the scoped dependency
 		}
 
+		// create a new instance
+		dep, err = getDependencyWithDependencies(ctx, container, dep, chain)
+		if err != nil {
+			return dep, err
+		}
+
+		// add the instance to the scoped cache
+		scope.AddScopedDependency(scopedID, dep)
 		return dep, nil
 	}
 
@@ -193,24 +202,19 @@ func setDependencies(ctx context.Context, container *EctoContainer, dep dependen
 
 		reflectName := ectoreflect.GetReflectTypeName(field.Type)
 
-		// check if dep is DIContainer
-		if reflectName == "github.com/Gobusters/ectoinject.DIContainer" {
-			id := defaultContainerID
-			if tag != "" {
-				id = tag
-			}
-			depContainer := GetContainer(id)
-			// setValue(i, isPtr, canSet, val, field, reflect.ValueOf(depContainer))
-			err := ectoreflect.SetField(val, field, reflect.ValueOf(depContainer))
+		typeName := tag
+		if typeName == "" {
+			typeName = reflectName
+		}
+
+		// check if the dependency is the container
+		containerDep, ok := getContainerDependency(container, typeName)
+		if ok {
+			err := ectoreflect.SetField(val, field, reflect.ValueOf(containerDep))
 			if err != nil {
 				return dep, fmt.Errorf("failed to set field '%s' on struct instance for dependency '%s': %w", field.Name, dep.GetName(), err)
 			}
 			continue
-		}
-
-		typeName := tag
-		if typeName == "" {
-			typeName = reflectName
 		}
 
 		childDep, ok := container.container[typeName]
@@ -238,6 +242,15 @@ func setDependencies(ctx context.Context, container *EctoContainer, dep dependen
 
 	dep.SetValue(val)
 	return dep, nil
+}
+
+func getContainerDependency(container *EctoContainer, name string) (any, bool) {
+	if name == "github.com/Gobusters/ectoinject.DIContainer" {
+		return container, true
+	}
+
+	dep, ok := containers[name]
+	return dep, ok
 }
 
 func checkForCircularDependency(depName string, chain []dependency.Dependency) error {
