@@ -16,10 +16,6 @@ func TestNewStructInstance(t *testing.T) {
 	instance, err := NewStructInstance(reflect.TypeOf(testStruct{}))
 	assert.NoError(t, err)
 
-	if instance.Kind() != reflect.Ptr {
-		t.Errorf("instance is not a pointer")
-	}
-
 	// check if the instance is of type testStruct
 	if _, ok := instance.Interface().(testStruct); !ok {
 		t.Errorf("instance is not of type testStruct")

@@ -49,6 +49,14 @@ func NewDIContainer(config containermodels.DIContainerConfig) (DIContainer, erro
 		config.LoggerConfig = &defaulLoggerConfig
 	}
 
+	if config.InjectTagName == "" {
+		config.InjectTagName = "inject"
+	}
+
+	if config.ConstructorFuncName == "" {
+		config.ConstructorFuncName = "Constructor"
+	}
+
 	loggerConfig := config.LoggerConfig
 	logger, err := logging.NewLogger(loggerConfig.Prefix, loggerConfig.LogLevel, loggerConfig.EnableColor, loggerConfig.Enabled, loggerConfig.LogFunc)
 	if err != nil {

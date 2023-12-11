@@ -120,7 +120,14 @@ func SetField(target reflect.Value, field reflect.StructField, value reflect.Val
 	// can the field be set?
 	canSet := fieldVal.CanSet()
 
-	value, err := CastType(field.Type, value.Interface())
+	var val any // the value to set
+	if value.Kind() == reflect.Ptr || !value.CanAddr() {
+		val = value.Interface()
+	} else {
+		val = value.Addr().Interface() // prevents copying for singletons and scoped dependencies
+	}
+
+	value, err := CastType(field.Type, val)
 	if err != nil {
 		return err
 	}
@@ -135,4 +142,48 @@ func SetField(target reflect.Value, field reflect.StructField, value reflect.Val
 	}
 
 	return nil
+}
+
+func GetPointerOfValue(val reflect.Value) any {
+	if val.Kind() == reflect.Ptr {
+		return val.Interface()
+	}
+
+	if !val.CanAddr() {
+		return val.Interface()
+	}
+
+	return val.Addr().Interface()
+}
+
+func SameType[A any, B any]() bool {
+	typeOfA := reflect.TypeOf((*A)(nil)).Elem()
+	typeOfB := reflect.TypeOf((*B)(nil)).Elem()
+
+	// Handle the case where A or B is an interface
+	if typeOfA.Kind() == reflect.Interface {
+		return typeImplementsInterface(typeOfB, typeOfA)
+	}
+	if typeOfB.Kind() == reflect.Interface {
+		return typeImplementsInterface(typeOfA, typeOfB)
+	}
+
+	// For non-interface types, check if they are the same
+	return typeOfA == typeOfB
+}
+
+// typeImplementsInterface checks if the provided type 't' implements the interface 'interfaceType'.
+func typeImplementsInterface(t reflect.Type, interfaceType reflect.Type) bool {
+	// Check if the type itself implements the interface
+	if t.Implements(interfaceType) {
+		return true
+	}
+
+	// If 't' is not a pointer type, check if a pointer to 't' implements the interface
+	if t.Kind() != reflect.Ptr {
+		ptrType := reflect.PtrTo(t)
+		return ptrType.Implements(interfaceType)
+	}
+
+	return false
 }

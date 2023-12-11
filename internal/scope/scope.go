@@ -2,93 +2,34 @@ package scope
 
 import (
 	"context"
-	"strconv"
-	"time"
 
 	"github.com/Gobusters/ectoinject/dependency"
 )
 
-var contextScopedContainerIDKey = "ectoinject-dependency-Scoped-container-id"
-var scopedCache = map[string]scopeCacheItem{}
+var contextScopedContainerIDKey = "ectoinject-dependency-scoped-container"
 
-type scopeCacheItem struct {
-	scopedID  string
-	instances map[string]dependency.Dependency
-}
-
-func AddScopedDependency(scopedID string, dep dependency.Dependency) {
-	if _, ok := scopedCache[scopedID]; !ok {
-		scopedCache[scopedID] = scopeCacheItem{
-			scopedID:  scopedID,
-			instances: map[string]dependency.Dependency{},
-		}
+func AddScopedDependency(ctx context.Context, dep dependency.Dependency) context.Context {
+	// get the scoped cache from the context
+	cache, ok := ctx.Value(contextScopedContainerIDKey).(map[string]dependency.Dependency)
+	if !ok {
+		cache = make(map[string]dependency.Dependency)
 	}
 
-	scopedCache[scopedID].instances[dep.GetName()] = dep
+	// add the dependency to the cache
+	cache[dep.GetName()] = dep
+
+	// add the cache to the context
+	return context.WithValue(ctx, contextScopedContainerIDKey, cache)
 }
 
-func GetScopedDependency(scopedID, dependencyName string) (dependency.Dependency, bool) {
-	if scopedID == "" {
-		return nil, false
-	}
-	if _, ok := scopedCache[scopedID]; !ok {
-		return nil, false
-	}
-
-	instance, ok := scopedCache[scopedID].instances[dependencyName]
-
-	return instance, ok
-}
-
-func RemoveScopedCache(scopedID string) {
-	delete(scopedCache, scopedID)
-}
-
-func RemoveScopedDependency(scopedID, dependencyName string) {
-	if _, ok := scopedCache[scopedID]; !ok {
-		return
+func GetScopedDependency(ctx context.Context, dependencyName string) (dependency.Dependency, bool) {
+	// get the scoped cache from the context
+	cache, ok := ctx.Value(contextScopedContainerIDKey).(map[string]dependency.Dependency)
+	if !ok {
+		cache = make(map[string]dependency.Dependency)
 	}
 
-	delete(scopedCache[scopedID].instances, dependencyName)
-}
-
-func generateID() string {
-	return strconv.FormatInt(time.Now().UnixNano(), 10)
-}
-
-// scopeContext scopes the context to for use with scoped dependencies. To prevent memory leaks, the context must be canceled or UnscopeContext must be called when the scope is finished
-// ctx: The context to scope
-func ScopeContext(ctx context.Context) context.Context {
-	// create a new Scoped container id
-	id := generateID()
-
-	// set the Scoped container id in the context
-	ctx = context.WithValue(ctx, contextScopedContainerIDKey, id)
-
-	// listen for the context to be done
-	go func() {
-		<-ctx.Done()
-		// remove the Scoped container from the cache
-		RemoveScopedCache(id)
-	}()
-
-	return ctx
-}
-
-// unscopeContext unscopes the context from a scoped dependency. This releases the cache for the scope and should be called when the scope is finished
-// ctx: The context to unscope
-func UnscopeContext(ctx context.Context) context.Context {
-	id := GetScopedID(ctx)
-	// remove the Scoped container id from the context
-	ctx = context.WithValue(ctx, contextScopedContainerIDKey, "")
-
-	// remove the Scoped container from the cache
-	RemoveScopedCache(id)
-
-	return ctx
-}
-
-func GetScopedID(ctx context.Context) string {
-	id, _ := ctx.Value(contextScopedContainerIDKey).(string)
-	return id
+	// get the dependency from the cache
+	dep, ok := cache[dependencyName]
+	return dep, ok
 }

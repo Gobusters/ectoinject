@@ -2,9 +2,11 @@ package ectoinject
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/Gobusters/ectoinject/container"
+	"github.com/Gobusters/ectoinject/lifecycles"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -33,6 +35,11 @@ type Human struct {
 	count int
 }
 
+type Person interface {
+	Speak() string
+	Count() int
+}
+
 func (h *Human) Speak() string {
 	return "hello"
 }
@@ -44,7 +51,7 @@ func (h *Human) Count() int {
 
 func TestGetSingleton(t *testing.T) {
 	type house struct {
-		Dad *Human `inject:""`
+		Dad Person `inject:""`
 		Mom Human  `inject:"mom"`
 		Pet Animal `inject:""`
 	}
@@ -60,7 +67,7 @@ func TestGetSingleton(t *testing.T) {
 	container, err := NewDIContainer(config)
 	assert.Nil(t, err, "error creating container")
 
-	err = RegisterSingleton[Human, Human](container)
+	err = RegisterSingleton[Person, Human](container)
 	assert.Nil(t, err, "error registering dad depenedency")
 
 	err = RegisterSingleton[Human, Human](container, "mom")
@@ -69,26 +76,26 @@ func TestGetSingleton(t *testing.T) {
 	err = RegisterSingleton[Animal, Dog](container)
 	assert.Nil(t, err, "error registering dog depenedency")
 
-	err = RegisterSingleton[*house, house](container)
+	err = RegisterSingleton[house, house](container)
 	assert.Nil(t, err, "error registering house depenedency")
 
 	ctx := context.Background()
 	ctx, err = SetActiveContainer(ctx, config.ID)
 	assert.Nil(t, err, "error setting active container")
 
-	houseInstance, err := GetDependency[*house](ctx)
+	_, houseInstance, err := GetContext[house](ctx)
 	assert.Nil(t, err, "error getting house instance")
 	assert.NotNil(t, houseInstance.Dad, "dad dependency was not set")
 
 	assert.Equal(t, 1, houseInstance.Dad.Count())
 	assert.Equal(t, 1, houseInstance.Mom.Count())
 
-	houseInstance, err = GetDependency[*house](ctx)
+	_, houseInstance, err = GetContext[house](ctx)
 	assert.Nil(t, err, "error getting house instance")
 	assert.NotNil(t, houseInstance.Dad, "dad dependency was not set")
 
 	assert.Equal(t, 2, houseInstance.Dad.Count())
-	assert.Equal(t, 2, houseInstance.Mom.Count())
+	assert.Equal(t, 1, houseInstance.Mom.Count())
 	assert.Equal(t, "woof", houseInstance.Pet.Speak())
 }
 
@@ -117,17 +124,17 @@ func TestGetNamedSingleton(t *testing.T) {
 	ctx, err = SetActiveContainer(ctx, config.ID)
 	assert.Nil(t, err, "error setting active container")
 
-	dad, err := GetNamedDependency[Animal](ctx, "dad")
+	_, dad, err := GetNamedDependency[Animal](ctx, "dad")
 	assert.Nil(t, err, "error getting dad instance")
 	assert.NotNil(t, dad, "dad dependency was not set")
 	assert.Equal(t, "hello", dad.Speak())
 
-	dog, err := GetNamedDependency[Animal](ctx, "dog")
+	_, dog, err := GetNamedDependency[Animal](ctx, "dog")
 	assert.Nil(t, err, "error getting dog instance")
 	assert.NotNil(t, dog, "dog dependency was not set")
 	assert.Equal(t, "woof", dog.Speak())
 
-	cat, err := GetNamedDependency[Animal](ctx, "cat")
+	_, cat, err := GetNamedDependency[Animal](ctx, "cat")
 	assert.Nil(t, err, "error getting cat instance")
 	assert.NotNil(t, cat, "cat dependency was not set")
 	assert.Equal(t, "meow", cat.Speak())
@@ -156,242 +163,378 @@ func TestGetDIContainer(t *testing.T) {
 	ctx, err = SetActiveContainer(ctx, config.ID)
 	assert.Nil(t, err, "error setting active container")
 
-	fakeServiceVal, err := GetDependency[fakeService](ctx)
+	_, fakeServiceVal, err := GetContext[fakeService](ctx)
 	assert.Nil(t, err, "error getting fake service")
 
 	assert.NotNil(t, fakeServiceVal.Dep, "fake service dependency was not set")
 
-	containerVal, err := GetNamedDependency[DIContainer](ctx, "test get di container")
+	_, containerVal, err := GetNamedDependency[DIContainer](ctx, "test get di container")
 	assert.Nil(t, err, "error getting container")
 
 	assert.NotNil(t, containerVal, "container dependency was not found")
 	assert.Equal(t, container, containerVal, "container values do not match")
 }
 
-// func TestGetScoped(t *testing.T) {
-// 	type testStruct struct {
-// 		Dep TestDep `inject:""`
-// 	}
+func TestGetScoped(t *testing.T) {
+	type house struct {
+		Dad Person `inject:""`
+	}
 
-// 	type testStruct2 struct {
-// 		Dep  testStruct `inject:""`
-// 		Dep1 TestDep    `inject:""`
-// 	}
+	type city struct {
+		House house  `inject:""`
+		Mayor Person `inject:""`
+	}
 
-// 	config := container.DIContainerConfig{
-// 		ID:                       "test 4",
-// 		AllowCaptiveDependencies: true,
-// 		AllowMissingDependencies: true,
-// 		RequireInjectTag:         false,
-// 		AllowUnsafeDependencies:  false,
-// 	}
+	config := container.DIContainerConfig{
+		ID:                       "test get scoped",
+		AllowCaptiveDependencies: true,
+		AllowMissingDependencies: true,
+		RequireInjectTag:         false,
+		AllowUnsafeDependencies:  false,
+	}
 
-// 	// register deps
-// 	container, err := NewDIContainer(config)
-// 	assert.Nil(t, err, "error creating container")
+	// register deps
+	container, err := NewDIContainer(config)
+	assert.Nil(t, err, "error creating container")
 
-// 	err = RegisterScoped[TestDep, TestDep1](container)
-// 	assert.Nil(t, err, "error registering dependency")
+	err = RegisterScoped[Person, Human](container)
+	assert.Nil(t, err, "error registering dad depenedency")
 
-// 	err = RegisterTransient[testStruct, testStruct](container)
-// 	assert.Nil(t, err, "error registering test struct")
+	err = RegisterTransient[house, house](container)
+	assert.Nil(t, err, "error registering house depenedency")
 
-// 	err = RegisterScoped[testStruct2, testStruct2](container)
-// 	assert.Nil(t, err, "error registering test struct 2")
+	err = RegisterTransient[city, city](container)
+	assert.Nil(t, err, "error registering city depenedency")
 
-// 	// scope ctx
-// 	ctx := context.Background()
-// 	ctx, _ = SetActiveContainer(ctx, config.ID)
+	// scope ctx
+	ctx := context.Background()
+	ctx, err = SetActiveContainer(ctx, config.ID)
+	assert.Nil(t, err, "error setting active container")
 
-// 	// get dep
-// 	testVal, err := GetDependency[testStruct2](ctx)
-// 	assert.Nil(t, err, "error getting test struct")
-// 	assert.NotNil(t, testVal.Dep, "Test struct dependnecy was not set")
-// 	assert.NotNil(t, testVal.Dep1, "Test struct dependnecy was not set")
+	// get dep
+	ctx, cityVal, err := GetContext[city](ctx)
+	assert.Nil(t, err, "error getting city")
+	assert.NotNil(t, cityVal.House, "house dependency was not set")
+	assert.NotNil(t, cityVal.Mayor, "mayor dependency was not set")
 
-// 	// increment count
-// 	test.Dep.IncrementCount()
-// 	result := test.Dep.IncrementCount()
-// 	assert.Equal(t, 2, result)
+	// increment count
+	assert.Equal(t, 1, cityVal.Mayor.Count())
+	assert.Equal(t, 2, cityVal.House.Dad.Count())
 
-// 	// get dep again
-// 	test, err = GetDependency[testStruct](ctx)
-// 	assert.Nil(t, err, "error getting test struct")
-// 	assert.NotNil(t, test.Dep, "Dependency was not set")
-// 	result = test.Dep.IncrementCount()
-// 	assert.Equal(t, 3, result)
+	// get dep
+	_, cityVal, err = GetContext[city](ctx)
+	assert.Nil(t, err, "error getting city")
+	assert.NotNil(t, cityVal.House, "house dependency was not set")
+	assert.NotNil(t, cityVal.Mayor, "mayor dependency was not set")
 
-// 	// create new scope
-// 	ctx2 := context.Background()
-// 	ctx2, _ = SetActiveContainer(ctx2, config.ID)
+	// increment count
+	assert.Equal(t, 3, cityVal.Mayor.Count())
+	assert.Equal(t, 4, cityVal.House.Dad.Count())
 
-// 	// get dep
-// 	test, err = GetDependency[testStruct](ctx2)
-// 	assert.Nil(t, err, "error getting test struct")
-// 	assert.NotNil(t, test.Dep, "Dependency was not set")
+	// create new scope
+	ctx = context.Background()
+	ctx, err = SetActiveContainer(ctx, config.ID)
+	assert.Nil(t, err, "error setting active container")
 
-// 	result = test.Dep.IncrementCount()
-// 	assert.Equal(t, 1, result)
-// }
+	// get dep again
+	_, cityVal, err = GetContext[city](ctx)
+	assert.Nil(t, err, "error getting city")
+	assert.NotNil(t, cityVal.House, "house dependency was not set")
+	assert.NotNil(t, cityVal.Mayor, "mayor dependency was not set")
 
-// func TestGetTransient(t *testing.T) {
-// 	type testStruct struct {
-// 		Dep TestDep `inject:""`
-// 	}
+	// increment count again
+	assert.Equal(t, 1, cityVal.Mayor.Count())
+	assert.Equal(t, 2, cityVal.House.Dad.Count())
+}
 
-// 	config := container.DIContainerConfig{
-// 		ID:                       "test 5",
-// 		AllowCaptiveDependencies: true,
-// 		AllowMissingDependencies: true,
-// 		RequireInjectTag:         false,
-// 		AllowUnsafeDependencies:  false,
-// 	}
+func TestGetTransient(t *testing.T) {
+	type house struct {
+		Dad *Human `inject:""`
+	}
 
-// 	// register deps
-// 	container, err := NewDIContainer(config)
-// 	assert.Nil(t, err, "error creating container")
+	config := container.DIContainerConfig{
+		ID:                       "test get transient",
+		AllowCaptiveDependencies: true,
+		AllowMissingDependencies: true,
+		RequireInjectTag:         false,
+		AllowUnsafeDependencies:  false,
+	}
 
-// 	err = RegisterTransient[TestDep, TestDep1](container)
-// 	assert.Nil(t, err, "error registering dependency singleton")
+	// register deps
+	container, err := NewDIContainer(config)
+	assert.Nil(t, err, "error creating container")
 
-// 	err = RegisterTransient[testStruct, testStruct](container)
-// 	assert.Nil(t, err, "error registering test struct singleton")
+	err = RegisterTransient[Human, Human](container)
+	assert.Nil(t, err, "error registering dad dependency")
 
-// 	// scope ctx
-// 	ctx := context.Background()
-// 	ctx, _ = SetActiveContainer(ctx, config.ID)
+	err = RegisterTransient[house, house](container)
+	assert.Nil(t, err, "error registering house dependency")
 
-// 	// get dep
-// 	test, err := GetDependency[testStruct](ctx)
-// 	assert.Nil(t, err, "error getting test struct")
-// 	assert.NotNil(t, test.Dep, "Dependency was not set")
+	// scope ctx
+	ctx := context.Background()
+	ctx, _ = SetActiveContainer(ctx, config.ID)
 
-// 	// increment count
-// 	test.Dep.IncrementCount()
-// 	result := test.Dep.IncrementCount()
-// 	assert.Equal(t, 2, result)
+	// get dep
+	_, houseVal, err := GetContext[house](ctx)
+	assert.Nil(t, err, "error getting house struct")
+	assert.NotNil(t, houseVal.Dad, "dad dependency was not set")
 
-// 	// get dep again
-// 	test, err = GetDependency[testStruct](ctx)
-// 	assert.Nil(t, err, "error getting test struct")
-// 	assert.NotNil(t, test.Dep, "Dependency was not set")
-// 	result = test.Dep.IncrementCount()
-// 	assert.Equal(t, 1, result)
-// }
+	// increment count
+	assert.Equal(t, 1, houseVal.Dad.Count())
 
-// func TestUnsafeDependencies(t *testing.T) {
-// 	type testStruct struct {
-// 		dep TestDep `inject:""`
-// 	}
+	// get dep again
+	_, houseVal, err = GetContext[house](ctx)
+	assert.Nil(t, err, "error getting house struct")
+	assert.NotNil(t, houseVal.Dad, "dad dependency was not set")
 
-// 	config := container.DIContainerConfig{
-// 		ID:                       "test 6",
-// 		AllowCaptiveDependencies: true,
-// 		AllowMissingDependencies: true,
-// 		RequireInjectTag:         false,
-// 		AllowUnsafeDependencies:  true,
-// 	}
+	// increment count again
+	assert.Equal(t, 1, houseVal.Dad.Count())
+}
 
-// 	// register deps
-// 	container, err := NewDIContainer(config)
-// 	assert.Nil(t, err, "error creating container")
+func TestUnsafeDependencies(t *testing.T) {
+	type house struct {
+		dad Person `inject:""`
+	}
 
-// 	err = RegisterTransient[TestDep, TestDep1](container)
-// 	assert.Nil(t, err, "error registering dependency singleton")
+	config := container.DIContainerConfig{
+		ID:                       "test 6",
+		AllowCaptiveDependencies: true,
+		AllowMissingDependencies: true,
+		RequireInjectTag:         false,
+		AllowUnsafeDependencies:  true,
+	}
 
-// 	err = RegisterTransient[testStruct, testStruct](container)
-// 	assert.Nil(t, err, "error registering test struct singleton")
+	// register deps
+	container, err := NewDIContainer(config)
+	assert.Nil(t, err, "error creating container")
 
-// 	ctx := context.Background()
-// 	ctx, _ = SetActiveContainer(ctx, config.ID)
-// 	test, err := GetDependency[testStruct](ctx)
-// 	assert.Nil(t, err, "error getting test struct")
+	err = RegisterSingleton[Person, Human](container)
+	assert.Nil(t, err, "error registering dependency dad dependency")
 
-// 	assert.NotNil(t, test.dep, "Dependency was not set")
-// }
+	err = RegisterSingleton[house, house](container)
+	assert.Nil(t, err, "error registering dependency house dependency")
 
-// type bottomStruct struct {
-// 	Dep TestDep `inject:"foo"`
-// }
+	ctx := context.Background()
+	ctx, err = SetActiveContainer(ctx, config.ID)
+	assert.Nil(t, err, "error setting active container")
 
-// type topStruct struct {
-// 	Text  string
-// 	Num   int
-// 	Count int
-// 	Dep   bottomStruct `inject:""`
-// }
+	_, houseVal, err := GetContext[house](ctx)
+	assert.Nil(t, err, "error getting test struct")
 
-// func (t *topStruct) GetString() string {
-// 	return t.Text
-// }
+	assert.NotNil(t, houseVal.dad, "Dependency was not set")
+}
 
-// func (t *topStruct) GetNumber() int {
-// 	return t.Num
-// }
+type circularAnimal struct {
+	Dep Animal `inject:"foo"`
+}
 
-// func (t *topStruct) IncrementCount() int {
-// 	t.Count++
-// 	return t.Count
-// }
+func (c *circularAnimal) Speak() string {
+	return "circles"
+}
 
-// func TestCircularDependency(t *testing.T) {
-// 	config := container.DIContainerConfig{
-// 		ID:                       "test circular",
-// 		AllowCaptiveDependencies: true,
-// 		AllowMissingDependencies: true,
-// 		RequireInjectTag:         false,
-// 		AllowUnsafeDependencies:  false,
-// 	}
+func TestCircularDependency(t *testing.T) {
+	type house struct {
+		Pet Animal `inject:"foo"`
+	}
 
-// 	container, err := NewDIContainer(config)
-// 	assert.Nil(t, err, "error creating container")
+	config := container.DIContainerConfig{
+		ID:                       "test circular dependency",
+		AllowCaptiveDependencies: true,
+		AllowMissingDependencies: true,
+		RequireInjectTag:         false,
+		AllowUnsafeDependencies:  false,
+	}
 
-// 	err = RegisterSingleton[TestDep, topStruct](container, "foo")
-// 	assert.Nil(t, err, "error registering topStruct dependency singleton")
+	container, err := NewDIContainer(config)
+	assert.Nil(t, err, "error creating container")
 
-// 	err = RegisterSingleton[bottomStruct, bottomStruct](container)
-// 	assert.Nil(t, err, "error registering bottomStruct dependency singleton")
+	err = RegisterSingleton[Animal, circularAnimal](container, "foo")
+	assert.Nil(t, err, "error registering animal dependency singleton")
 
-// 	ctx := context.Background()
-// 	ctx, _ = SetActiveContainer(ctx, config.ID)
+	err = RegisterSingleton[house, house](container)
+	assert.Nil(t, err, "error registering house dependency singleton")
 
-// 	_, err = GetNamedDependency[TestDep](ctx, "foo")
-// 	assert.NotNil(t, err, "No error getting circular dependency")
-// 	assert.Equal(t, "circular dependency detected for 'foo'. Dependency chain: foo -> github.com/Gobusters/ectoinject.bottomStruct -> foo", err.Error())
-// }
+	ctx := context.Background()
+	ctx, _ = SetActiveContainer(ctx, config.ID)
 
-// type testConstructorStruct struct {
-// 	Val string
-// }
+	_, _, err = GetContext[house](ctx)
+	assert.NotNil(t, err, "No error getting circular dependency")
+	assert.Equal(t, "circular dependency detected for 'foo'. Dependency chain: github.com/Gobusters/ectoinject.house -> foo -> foo", err.Error())
+}
 
-// func (t *testConstructorStruct) Constructor(dep TestDep) *testConstructorStruct {
-// 	t.Val = dep.GetString()
-// 	return t
-// }
+type monkey struct {
+	repeat string
+}
 
-// func TestConstructor(t *testing.T) {
-// 	config := container.DIContainerConfig{
-// 		ID:                       "test constructor",
-// 		AllowCaptiveDependencies: true,
-// 		AllowMissingDependencies: true,
-// 		RequireInjectTag:         false,
-// 		AllowUnsafeDependencies:  false,
-// 	}
+func (m *monkey) Speak() string {
+	return m.repeat
+}
 
-// 	container, err := NewDIContainer(config)
-// 	assert.Nil(t, err, "error creating container")
+func (m *monkey) Constructor(dep Animal) *monkey {
+	m.repeat = dep.Speak()
+	return m
+}
 
-// 	err = RegisterSingleton[TestDep, TestDep1](container)
-// 	assert.Nil(t, err, "error registering dependency singleton")
+func (m *monkey) DIConstructor(ctx context.Context, di DIContainer) (*monkey, error) {
+	_, animal, err := GetDependency[Animal](ctx, di, "github.com/Gobusters/ectoinject.Animal")
+	if err != nil {
+		return nil, fmt.Errorf("monkey DIConstructor failed to get dependency: %w", err)
+	}
 
-// 	err = RegisterSingleton[testConstructorStruct, testConstructorStruct](container)
-// 	assert.Nil(t, err, "error registering testConstructorStruct dependency singleton")
+	m.repeat = animal.Speak()
 
-// 	ctx := context.Background()
-// 	ctx, _ = SetActiveContainer(ctx, config.ID)
+	return m, nil
+}
 
-// 	testStruct, err := GetDependency[testConstructorStruct](ctx)
-// 	assert.Nil(t, err, "error getting testConstructorStruct")
+func (m *monkey) ErrorConstructor() (*monkey, error) {
+	return m, fmt.Errorf("monkey error constructor has returned an error")
+}
 
-// 	assert.Equal(t, "test", testStruct.Val)
-// }
+func TestConstructor(t *testing.T) {
+	config := container.DIContainerConfig{
+		ID:                       "test constructor",
+		AllowCaptiveDependencies: true,
+		AllowMissingDependencies: true,
+		RequireInjectTag:         false,
+		AllowUnsafeDependencies:  false,
+	}
+
+	container, err := NewDIContainer(config)
+	assert.Nil(t, err, "error creating container")
+
+	err = RegisterSingleton[monkey, monkey](container)
+	assert.Nil(t, err, "error registering monkey dependency singleton")
+
+	err = RegisterSingleton[Animal, Dog](container)
+	assert.Nil(t, err, "error registering animal dependency singleton")
+
+	ctx := context.Background()
+	ctx, err = SetActiveContainer(ctx, config.ID)
+	assert.Nil(t, err, "error setting active container")
+
+	_, monkeyVal, err := GetContext[monkey](ctx)
+	assert.Nil(t, err, "error getting monkey struct")
+
+	assert.Equal(t, "woof", monkeyVal.Speak())
+}
+
+func TestConstructorWithDIContainer(t *testing.T) {
+	config := container.DIContainerConfig{
+		ID:                       "test constructor with DIContainer",
+		AllowCaptiveDependencies: true,
+		AllowMissingDependencies: true,
+		RequireInjectTag:         false,
+		AllowUnsafeDependencies:  false,
+		ConstructorFuncName:      "DIConstructor",
+	}
+
+	container, err := NewDIContainer(config)
+	assert.Nil(t, err, "error creating container")
+
+	err = RegisterSingleton[monkey, monkey](container)
+	assert.Nil(t, err, "error registering monkey dependency singleton")
+
+	err = RegisterSingleton[Animal, Cat](container)
+	assert.Nil(t, err, "error registering animal dependency singleton")
+
+	ctx := context.Background()
+	ctx, err = SetActiveContainer(ctx, config.ID)
+	assert.Nil(t, err, "error setting active container")
+
+	_, monkeyVal, err := GetContext[monkey](ctx)
+	assert.Nil(t, err, "error getting monkey struct")
+
+	assert.Equal(t, "meow", monkeyVal.Speak())
+}
+
+func TestConstructorWithError(t *testing.T) {
+	config := container.DIContainerConfig{
+		ID:                       "test constructor with error",
+		AllowCaptiveDependencies: true,
+		AllowMissingDependencies: true,
+		RequireInjectTag:         false,
+		AllowUnsafeDependencies:  false,
+		ConstructorFuncName:      "ErrorConstructor",
+	}
+
+	container, err := NewDIContainer(config)
+	assert.Nil(t, err, "error creating container")
+
+	err = RegisterSingleton[monkey, monkey](container)
+	assert.Nil(t, err, "error registering monkey dependency singleton")
+
+	ctx := context.Background()
+	ctx, err = SetActiveContainer(ctx, config.ID)
+	assert.Nil(t, err, "error setting active container")
+
+	_, _, err = GetContext[monkey](ctx)
+	assert.Error(t, err, "monkey error constructor has returned an error")
+}
+
+func TestGetInstanceFunc(t *testing.T) {
+	type house struct {
+		Dad Person `inject:""`
+	}
+
+	config := container.DIContainerConfig{
+		ID:                       "test get instance func",
+		AllowCaptiveDependencies: true,
+		AllowMissingDependencies: true,
+		RequireInjectTag:         false,
+		AllowUnsafeDependencies:  false,
+	}
+
+	container, err := NewDIContainer(config)
+	assert.Nil(t, err, "error creating container")
+
+	err = RegisterInstanceFunc[Person](container, lifecycles.Singleton, func(ctx context.Context) (any, error) {
+		return &Human{
+			Name: "Dave",
+		}, nil
+	})
+	assert.Nil(t, err, "error registering dad depenedency")
+
+	err = RegisterSingleton[house, house](container)
+	assert.Nil(t, err, "error registering house dependency singleton")
+
+	ctx := context.Background()
+	ctx, err = SetActiveContainer(ctx, config.ID)
+	assert.Nil(t, err, "error setting active container")
+
+	_, houseVal, err := GetContext[house](ctx)
+	assert.Nil(t, err, "error getting house struct")
+
+	assert.Equal(t, "Dave", houseVal.Dad.(*Human).Name)
+}
+
+func TestInstanceDependency(t *testing.T) {
+	type house struct {
+		Location string `inject:"foo"`
+	}
+
+	config := container.DIContainerConfig{
+		ID:                       "test instance dependency",
+		AllowCaptiveDependencies: true,
+		AllowMissingDependencies: true,
+		RequireInjectTag:         false,
+		AllowUnsafeDependencies:  false,
+	}
+
+	container, err := NewDIContainer(config)
+	assert.Nil(t, err, "error creating container")
+
+	err = RegisterInstance[string](container, "bar", "foo")
+	assert.Nil(t, err, "error registering dad depenedency")
+
+	err = RegisterSingleton[house, house](container)
+	assert.Nil(t, err, "error registering house dependency singleton")
+
+	ctx := context.Background()
+	ctx, err = SetActiveContainer(ctx, config.ID)
+	assert.Nil(t, err, "error setting active container")
+
+	_, houseVal, err := GetContext[house](ctx)
+	assert.Nil(t, err, "error getting house struct")
+
+	assert.Equal(t, "bar", houseVal.Location)
+}

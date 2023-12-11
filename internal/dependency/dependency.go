@@ -23,7 +23,7 @@ type EctoDependency struct {
 
 func (d *EctoDependency) SetValue(v reflect.Value) error {
 	d.value = v
-	d.instance = v.Interface()
+	d.instance = ectoreflect.GetPointerOfValue(v)
 
 	return nil
 }

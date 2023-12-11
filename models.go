@@ -7,7 +7,7 @@ import (
 )
 
 type DIContainer interface {
-	Get(ctx context.Context, name string) (any, error)
+	Get(ctx context.Context, name string) (context.Context, any, error)
 	GetConstructorFuncName() string
 	AddDependency(dep dependency.Dependency)
 }

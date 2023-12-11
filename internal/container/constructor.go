@@ -9,7 +9,7 @@ import (
 	ectoreflect "github.com/Gobusters/ectoinject/internal/reflect"
 )
 
-func useDependencyConstructor(ctx context.Context, container *EctoContainer, dep dependency.Dependency, chain []dependency.Dependency) (dependency.Dependency, error) {
+func useDependencyConstructor(ctx context.Context, container *EctoContainer, dep dependency.Dependency, chain []dependency.Dependency) (context.Context, dependency.Dependency, error) {
 	constructor := dep.GetConstructor()
 
 	// get the number of args for the constructor
@@ -32,7 +32,7 @@ func useDependencyConstructor(ctx context.Context, container *EctoContainer, dep
 			// the first arg is the struct instance
 			val, err := ectoreflect.NewStructInstance(paramType)
 			if err != nil {
-				return dep, err
+				return ctx, dep, err
 			}
 
 			if isPtr {
@@ -45,40 +45,62 @@ func useDependencyConstructor(ctx context.Context, container *EctoContainer, dep
 		// get the name of the param type
 		paramTypeName := ectoreflect.GetReflectTypeName(paramType)
 
+		// if the arg is a context, add the context to the args
+		if paramTypeName == "context.Context" {
+			args[i] = reflect.ValueOf(ctx)
+			continue
+		}
+
+		// check if the dependency is the container
+		containerDep, ok := getContainerDependency(container, paramTypeName)
+		if ok {
+			// get the instance of the container
+			args[i] = reflect.ValueOf(containerDep)
+			continue
+		}
+
 		// check if the param is a dependency
 		childDep, ok := container.container[paramTypeName]
 		if !ok {
-			return dep, fmt.Errorf("dependency '%s' has unregistered dependency '%s' in '%s' func", dep.GetName(), paramTypeName, constructor.Name)
+			return ctx, dep, fmt.Errorf("dependency '%s' has unregistered dependency '%s' in '%s' func", dep.GetName(), paramTypeName, constructor.Name)
 		}
 
 		// get the instance of the dependency
-		childDep, err := getDependency(ctx, container, childDep, chain)
+		var err error
+		ctx, childDep, err = getDependency(ctx, container, childDep, chain)
 		if err != nil {
-			return dep, err
+			return ctx, dep, err
+		}
+
+		val := childDep.GetValue()
+		// check if the param is a pointer
+		if isPtr || paramType.Kind() == reflect.Interface {
+			// if the param is a pointer, get the pointer to the value
+			val = val.Addr()
 		}
 
 		// add the dependency to the args
-		args[i] = childDep.GetValue()
+		args[i] = val
 	}
 
 	// call the constructor with the args
 	result := constructor.Func.Call(args)
 
 	if len(result) == 0 {
-		return dep, fmt.Errorf("constructor '%s' on dependnecy '%s' did not return an instance", constructor.Name, dep.GetName())
+		return ctx, dep, fmt.Errorf("constructor '%s' on dependnecy '%s' did not return an instance", constructor.Name, dep.GetName())
 	}
 
 	dep.SetValue(result[0])
 	container.container[dep.GetName()] = dep
 
 	if len(result) == 1 {
-		return dep, nil
+		return ctx, dep, nil
 	}
 
 	err, ok := result[1].Interface().(error)
 	if ok {
-		return dep, err
+		return ctx, dep, err
 	}
 
-	return dep, nil
+	return ctx, dep, nil
 }
