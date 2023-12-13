@@ -52,7 +52,7 @@ func useDependencyConstructor(ctx context.Context, container *EctoContainer, dep
 		}
 
 		// check if the dependency is the container
-		containerDep, ok := getContainerDependency(container, paramTypeName)
+		containerDep, ok := container.getContainerDependency(paramTypeName)
 		if ok {
 			// get the instance of the container
 			args[i] = reflect.ValueOf(containerDep)
@@ -67,7 +67,7 @@ func useDependencyConstructor(ctx context.Context, container *EctoContainer, dep
 
 		// get the instance of the dependency
 		var err error
-		ctx, childDep, err = getDependency(ctx, container, childDep, chain)
+		ctx, childDep, err = container.getDependency(ctx, childDep, chain)
 		if err != nil {
 			return ctx, dep, err
 		}
