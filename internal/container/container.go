@@ -5,27 +5,32 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/Gobusters/ectoinject/container"
 	"github.com/Gobusters/ectoinject/dependency"
+	"github.com/Gobusters/ectoinject/ectocontainer"
 	"github.com/Gobusters/ectoinject/internal/logging"
 	ectoreflect "github.com/Gobusters/ectoinject/internal/reflect"
 	"github.com/Gobusters/ectoinject/internal/scope"
+	"github.com/Gobusters/ectoinject/internal/store"
 	"github.com/Gobusters/ectoinject/lifecycles"
 )
 
 // Container for dependencies
 type EctoContainer struct {
-	container.DIContainerConfig                                  // The configuration for the container
-	logger                      *logging.Logger                  // The logger to use
-	container                   map[string]dependency.Dependency // The container of dependencies
+	ectocontainer.DIContainerConfig                                  // The configuration for the container
+	logger                          *logging.Logger                  // The logger to use
+	container                       map[string]dependency.Dependency // The container of dependencies
 }
 
-func NewEctoContainer(config container.DIContainerConfig, logger *logging.Logger) *EctoContainer {
+func NewEctoContainer(config ectocontainer.DIContainerConfig, logger *logging.Logger) *EctoContainer {
 	return &EctoContainer{
 		DIContainerConfig: config,
 		logger:            logger,
 		container:         make(map[string]dependency.Dependency),
 	}
+}
+
+func (container *EctoContainer) GetContainerID() string {
+	return container.ID
 }
 
 func (container *EctoContainer) AddDependency(dep dependency.Dependency) {
@@ -248,12 +253,15 @@ func (container *EctoContainer) setDependencies(ctx context.Context, dep depende
 }
 
 func (container *EctoContainer) getContainerDependency(name string) (any, bool) {
-	if name == "github.com/Gobusters/ectoinject.DIContainer" {
+	if name == ectoreflect.GetIntefaceName[ectocontainer.DIContainer]() {
 		return container, true
 	}
 
-	dep, ok := containers[name]
-	return dep, ok
+	dep := store.GetContainer(name)
+	if dep != nil {
+		return dep, true
+	}
+	return dep, false
 }
 
 func checkForCircularDependency(depName string, chain []dependency.Dependency) error {

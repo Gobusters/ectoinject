@@ -1,4 +1,18 @@
-package container
+package ectocontainer
+
+import (
+	"context"
+
+	"github.com/Gobusters/ectoinject/dependency"
+)
+
+// DIContainer is the interface for the container
+type DIContainer interface {
+	Get(ctx context.Context, name string) (context.Context, any, error) // Gets a dependency from the container
+	GetConstructorFuncName() string                                     // Gets the name of the constructor function
+	AddDependency(dep dependency.Dependency)                            // Adds a dependency to the container
+	GetContainerID() string                                             // Gets the id of the container
+}
 
 // DIContainerLoggerConfig is the configuration for the logger used by the container
 type DIContainerLoggerConfig struct {

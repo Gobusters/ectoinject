@@ -3,6 +3,7 @@ package ectoinject
 import (
 	"context"
 
+	"github.com/Gobusters/ectoinject/ectocontainer"
 	ectoreflect "github.com/Gobusters/ectoinject/internal/reflect"
 )
 
@@ -62,7 +63,7 @@ func GetNamedDependency[T any](ctx context.Context, name string) (context.Contex
 // ctx: The context to use. To use a non-default container, use SetActiveContainer
 // container: The container to get the dependency from
 // name: The name of the dependency. Unnamed dependencies will use `{module}.{type}` as the name
-func GetDependency[T any](ctx context.Context, container DIContainer, name string) (context.Context, T, error) {
+func GetDependency[T any](ctx context.Context, container ectocontainer.DIContainer, name string) (context.Context, T, error) {
 	var val T
 
 	ctx, depValue, err := container.Get(ctx, name)

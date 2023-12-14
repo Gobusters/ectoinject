@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/Gobusters/ectoinject/ectocontainer"
 	"github.com/Gobusters/ectoinject/internal/dependency"
 	ectoreflect "github.com/Gobusters/ectoinject/internal/reflect"
 	"github.com/Gobusters/ectoinject/lifecycles"
@@ -15,7 +16,7 @@ import (
 // TValue: The implementation of the dependency
 // container: The container to register the dependency in
 // names: (optional) The names of the dependency
-func RegisterSingleton[TType any, TValue any](container DIContainer, names ...string) error {
+func RegisterSingleton[TType any, TValue any](container ectocontainer.DIContainer, names ...string) error {
 	return RegisterDependency[TType, TValue](container, lifecycles.Singleton, names...)
 }
 
@@ -24,7 +25,7 @@ func RegisterSingleton[TType any, TValue any](container DIContainer, names ...st
 // TValue: The implementation of the dependency
 // container: The container to register the dependency in
 // names: (optional) The names of the dependency
-func RegisterScoped[TType any, TValue any](container DIContainer, names ...string) error {
+func RegisterScoped[TType any, TValue any](container ectocontainer.DIContainer, names ...string) error {
 	return RegisterDependency[TType, TValue](container, lifecycles.Scoped, names...)
 }
 
@@ -33,7 +34,7 @@ func RegisterScoped[TType any, TValue any](container DIContainer, names ...strin
 // TValue: The implementation of the dependency
 // container: The container to register the dependency in
 // names: (optional) The names of the dependency
-func RegisterTransient[TType any, TValue any](container DIContainer, names ...string) error {
+func RegisterTransient[TType any, TValue any](container ectocontainer.DIContainer, names ...string) error {
 	return RegisterDependency[TType, TValue](container, lifecycles.Transient, names...)
 }
 
@@ -43,7 +44,7 @@ func RegisterTransient[TType any, TValue any](container DIContainer, names ...st
 // lifecycle: The lifecycle of the dependency. Must be one of transient, scoped, or singleton
 // getInstanceFunc: a function that returns the instance
 // names: (optional) The names of the dependency
-func RegisterInstanceFunc[TType any](container DIContainer, lifecycle string, getInstanceFunc func(context.Context) (any, error), names ...string) error {
+func RegisterInstanceFunc[TType any](container ectocontainer.DIContainer, lifecycle string, getInstanceFunc func(context.Context) (any, error), names ...string) error {
 	if len(names) == 0 {
 		names = []string{""}
 	}
@@ -66,7 +67,7 @@ func RegisterInstanceFunc[TType any](container DIContainer, lifecycle string, ge
 // container: The container to register the dependency in
 // instance: The instance to register
 // names: (optional) The names of the dependency
-func RegisterInstance[TType any](container DIContainer, instance any, names ...string) error {
+func RegisterInstance[TType any](container ectocontainer.DIContainer, instance any, names ...string) error {
 	getInstanceFunc := func(context.Context) (any, error) {
 		return instance, nil
 	}
@@ -79,7 +80,7 @@ func RegisterInstance[TType any](container DIContainer, instance any, names ...s
 // TValue: The implementation of the dependency
 // container: The container to register the dependency in
 // lifecycle: The lifecycle of the dependency
-func RegisterDependency[TType any, TValue any](container DIContainer, lifecycle string, names ...string) error {
+func RegisterDependency[TType any, TValue any](container ectocontainer.DIContainer, lifecycle string, names ...string) error {
 	// ensure the TValue is a Struct
 	valueType := reflect.TypeOf((*TValue)(nil)).Elem()
 	if valueType.Kind() != reflect.Struct {
