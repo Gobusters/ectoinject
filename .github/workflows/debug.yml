@@ -1,0 +1,19 @@
+name: Check Snyk Token
+
+on: [push]
+
+jobs:
+  check-snyk-token:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if SNYK_TOKEN is set
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if [ -z "$SNYK_TOKEN" ]
+          then
+            echo "SNYK_TOKEN is not set."
+            exit 1
+          else
+            echo "SNYK_TOKEN is set."
+          fi
