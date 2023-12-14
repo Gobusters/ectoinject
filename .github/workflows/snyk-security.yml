@@ -10,15 +10,6 @@ jobs:
   snyk-analysis:
     runs-on: ubuntu-latest
     steps:
-    - name: Check Snyk Token Length
-      env:
-        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      run: |
-          if [ ${#SNYK_TOKEN} -gt 0 ]; then
-            echo "SNYK_TOKEN is set and has a length of ${#SNYK_TOKEN} characters."
-          else
-            echo "SNYK_TOKEN is not set or is empty."
-          fi
     - name: Checkout Repository
       uses: actions/checkout@v3
 
@@ -37,6 +28,10 @@ jobs:
 
     - name: Snyk Open Source (SCA) Analysis
       run: snyk test --all-projects
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
     - name: Snyk Code (SAST) Analysis
       run: snyk code test
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
