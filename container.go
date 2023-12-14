@@ -1,16 +1,14 @@
 package ectoinject
 
 import (
+	"github.com/Gobusters/ectoinject/ectocontainer"
 	"github.com/Gobusters/ectoinject/internal/container"
 	"github.com/Gobusters/ectoinject/internal/logging"
+	"github.com/Gobusters/ectoinject/internal/store"
 	"github.com/Gobusters/ectoinject/loglevel"
-
-	containermodels "github.com/Gobusters/ectoinject/container"
 )
 
-var defaultContainerID = "default"
-
-var defaulLoggerConfig = containermodels.DIContainerLoggerConfig{
+var defaulLoggerConfig = ectocontainer.DIContainerLoggerConfig{
 	Prefix:      "ectoinject",
 	LogLevel:    loglevel.INFO,
 	EnableColor: true,
@@ -18,15 +16,22 @@ var defaulLoggerConfig = containermodels.DIContainerLoggerConfig{
 	LogFunc:     nil,
 }
 
-// NewDIDefaultContainer creates a new container with the default configuration
-func NewDIDefaultContainer() (DIContainer, error) {
+// NewDIDefaultContainer creates a new container with the default configuration. The default configuration is:
+// ID: "default"
+// AllowCaptiveDependencies: true
+// AllowMissingDependencies: true
+// RequireInjectTag: false
+// AllowUnsafeDependencies: false
+// ConstructorFuncName: "Constructor"
+// InjectTagName: "inject"
+func NewDIDefaultContainer() (ectocontainer.DIContainer, error) {
 	logger, err := logging.NewLogger(defaulLoggerConfig.Prefix, defaulLoggerConfig.LogLevel, defaulLoggerConfig.EnableColor, defaulLoggerConfig.Enabled, defaulLoggerConfig.LogFunc)
 	if err != nil {
 		return nil, err
 	}
 
-	ectoContainer := container.NewEctoContainer(containermodels.DIContainerConfig{
-		ID:                       defaultContainerID,
+	ectoContainer := container.NewEctoContainer(ectocontainer.DIContainerConfig{
+		ID:                       store.GetDefaultContainerID(),
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
 		RequireInjectTag:         false,
@@ -35,14 +40,16 @@ func NewDIDefaultContainer() (DIContainer, error) {
 		InjectTagName:            "inject",
 	}, logger)
 
-	container.AddContainer(ectoContainer)
+	store.RegisterContainer(ectoContainer)
 
 	return ectoContainer, nil
 }
 
-func NewDIContainer(config containermodels.DIContainerConfig) (DIContainer, error) {
+// NewDIContainer creates a new container with the provided configuration
+// config: The configuration to use for the container
+func NewDIContainer(config ectocontainer.DIContainerConfig) (ectocontainer.DIContainer, error) {
 	if config.ID == "" {
-		config.ID = defaultContainerID
+		config.ID = store.GetDefaultContainerID()
 	}
 
 	if config.LoggerConfig == nil {
@@ -65,9 +72,29 @@ func NewDIContainer(config containermodels.DIContainerConfig) (DIContainer, erro
 
 	ectoContainer := container.NewEctoContainer(config, logger)
 
-	RegisterInstance[DIContainer](ectoContainer, &ectoContainer)
+	RegisterInstance[ectocontainer.DIContainer](ectoContainer, &ectoContainer)
 
-	container.AddContainer(ectoContainer)
+	store.RegisterContainer(ectoContainer)
 
 	return ectoContainer, nil
+}
+
+// RegisterContainer adds the container to the container lookup
+func RegisterContainer(container ectocontainer.DIContainer) error {
+	return store.RegisterContainer(container)
+}
+
+// SetDefaultContainer sets the default container to use
+func SetDefaultContainer(containerID string) error {
+	return store.SetDefaultContainer(containerID)
+}
+
+// GetDefaultContainer gets the default container
+func GetDefaultContainer() ectocontainer.DIContainer {
+	return store.GetDefaultContainer()
+}
+
+// GetContainer gets the container with the provided id
+func GetContainer(id string) ectocontainer.DIContainer {
+	return store.GetContainer(id)
 }

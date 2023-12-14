@@ -14,7 +14,7 @@ func (b *Bar) Hello() string {
 }
 
 type Foo struct {
-	Bar Bar
+	Bar Bar `inject:"bar"`
 }
 
 func main() {

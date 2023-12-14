@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Gobusters/ectoinject"
+	"github.com/Gobusters/ectoinject/ectocontainer"
 )
 
 type GhostTrap struct {
@@ -48,7 +49,7 @@ func (r *Ray) HasGhost() bool {
 }
 
 // Ray requires a GhostTrap to be injected and returns an instance of the Ray struct
-func (r *Ray) Constructor(ctx context.Context, di ectoinject.DIContainer) GhostBuster {
+func (r *Ray) Constructor(ctx context.Context, di ectocontainer.DIContainer) GhostBuster {
 	ctx, gt, err := ectoinject.GetContext[GhostTrap](ctx)
 	if err != nil {
 		panic(err) // handle error

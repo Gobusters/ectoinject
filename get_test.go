@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Gobusters/ectoinject/container"
+	"github.com/Gobusters/ectoinject/ectocontainer"
 	"github.com/Gobusters/ectoinject/lifecycles"
 	"github.com/stretchr/testify/assert"
 )
@@ -54,7 +54,7 @@ func TestGetSingleton(t *testing.T) {
 		Pet Animal `inject:""`
 	}
 
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test get singleton",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -98,7 +98,7 @@ func TestGetSingleton(t *testing.T) {
 }
 
 func TestGetNamedSingleton(t *testing.T) {
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test get named singleton",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -140,10 +140,10 @@ func TestGetNamedSingleton(t *testing.T) {
 
 func TestGetDIContainer(t *testing.T) {
 	type fakeService struct {
-		Dep DIContainer `inject:"test get di container"`
+		Dep ectocontainer.DIContainer `inject:"test get di container"`
 	}
 
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test get di container",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -166,7 +166,7 @@ func TestGetDIContainer(t *testing.T) {
 
 	assert.NotNil(t, fakeServiceVal.Dep, "fake service dependency was not set")
 
-	_, containerVal, err := GetNamedDependency[DIContainer](ctx, "test get di container")
+	_, containerVal, err := GetNamedDependency[ectocontainer.DIContainer](ctx, "test get di container")
 	assert.Nil(t, err, "error getting container")
 
 	assert.NotNil(t, containerVal, "container dependency was not found")
@@ -183,7 +183,7 @@ func TestGetScoped(t *testing.T) {
 		Mayor Person `inject:""`
 	}
 
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test get scoped",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -250,7 +250,7 @@ func TestGetTransient(t *testing.T) {
 		Dad *Human `inject:""`
 	}
 
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test get transient",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -302,7 +302,7 @@ func TestCircularDependency(t *testing.T) {
 		Pet Animal `inject:"foo"`
 	}
 
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test circular dependency",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -340,7 +340,7 @@ func (m *monkey) Constructor(dep Animal) *monkey {
 	return m
 }
 
-func (m *monkey) DIConstructor(ctx context.Context, di DIContainer) (*monkey, error) {
+func (m *monkey) DIConstructor(ctx context.Context, di ectocontainer.DIContainer) (*monkey, error) {
 	_, animal, err := GetDependency[Animal](ctx, di, "github.com/Gobusters/ectoinject.Animal")
 	if err != nil {
 		return nil, fmt.Errorf("monkey DIConstructor failed to get dependency: %w", err)
@@ -356,7 +356,7 @@ func (m *monkey) ErrorConstructor() (*monkey, error) {
 }
 
 func TestConstructor(t *testing.T) {
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test constructor",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -384,7 +384,7 @@ func TestConstructor(t *testing.T) {
 }
 
 func TestConstructorWithDIContainer(t *testing.T) {
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test constructor with DIContainer",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -413,7 +413,7 @@ func TestConstructorWithDIContainer(t *testing.T) {
 }
 
 func TestConstructorWithError(t *testing.T) {
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test constructor with error",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -441,7 +441,7 @@ func TestGetInstanceFunc(t *testing.T) {
 		Dad Person `inject:""`
 	}
 
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test get instance func",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -477,7 +477,7 @@ func TestInstanceDependency(t *testing.T) {
 		Location string `inject:"foo"`
 	}
 
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test instance dependency",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -510,7 +510,7 @@ func TestRequireInjectTag(t *testing.T) {
 		Mom Person `inject:"mom"`
 	}
 
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test require inject tag",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -546,7 +546,7 @@ func TestDisableMissingDependencies(t *testing.T) {
 		Cat Animal `inject:"fluffy"`
 	}
 
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test disable missing dependencies",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: false,
@@ -578,7 +578,7 @@ func TestEnableMissingDependencies(t *testing.T) {
 		Cat Animal `inject:"fluffy"`
 	}
 
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test enable missing dependencies",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -615,7 +615,7 @@ func TestDisableCaptiveDependencies(t *testing.T) {
 		Dog Animal `inject:"buddy"`
 	}
 
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test disable captive dependencies",
 		AllowCaptiveDependencies: false,
 		AllowMissingDependencies: true,
@@ -649,7 +649,7 @@ func TestEnableCaptiveDependencies(t *testing.T) {
 		Owner Person `inject:""`
 	}
 
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test enable captive dependencies",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -689,7 +689,7 @@ func TestEnableUnsafeDependencies(t *testing.T) {
 		dad Person `inject:""`
 	}
 
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test enable unsafe dependencies",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
@@ -722,7 +722,7 @@ func TestDisableUnsafeDependencies(t *testing.T) {
 		dad Person `inject:""`
 	}
 
-	config := container.DIContainerConfig{
+	config := ectocontainer.DIContainerConfig{
 		ID:                       "test disable unsafe dependencies",
 		AllowCaptiveDependencies: true,
 		AllowMissingDependencies: true,
