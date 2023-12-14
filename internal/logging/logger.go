@@ -10,12 +10,9 @@ import (
 
 // STDOUT colors
 const (
-	reset   = "\033[0m"
-	red     = "\033[31m"
-	green   = "\033[32m"
-	yellow  = "\033[33m"
-	blue    = "\033[34m"
-	magenta = "\033[35m"
+	reset  = "\033[0m"
+	yellow = "\033[33m"
+	blue   = "\033[34m"
 )
 
 type LogFunc func(level, msg string)
@@ -87,22 +84,6 @@ func (l *Logger) Info(format string, args ...any) {
 	l.LogMessage(loglevel.INFO, msg)
 }
 
-// Error Logs a message at the ERROR level
-// format: The format string to use
-// args: The arguments to use in the format string
-func (l *Logger) Error(format string, args ...any) {
-	msg := fmt.Sprintf(format, args...)
-	l.LogMessage(loglevel.ERROR, msg)
-}
-
-// Fatal: Logs a message at the FATAL level
-// format: The format string to use
-// args: The arguments to use in the format string
-func (l *Logger) Fatal(format string, args ...any) {
-	msg := fmt.Sprintf(format, args...)
-	l.LogMessage(loglevel.FATAL, msg)
-}
-
 // LogMessage Logs a message to STDOUT
 // level: The log level to use
 // msg: The message to log
@@ -132,29 +113,7 @@ func (l *Logger) LogMessage(level, msg string) {
 			color = blue
 		case loglevel.WARN:
 			color = yellow
-		case loglevel.ERROR:
-			color = red
-		case loglevel.FATAL:
-			color = magenta
 		}
-	}
-
-	if level == loglevel.FATAL {
-		log.Printf("%s%s%s", color, msg, resetColor)
-		return
-	}
-
-	if l.level == loglevel.FATAL {
-		return // Don't log anything under FATAL
-	}
-
-	if level == loglevel.ERROR {
-		log.Printf("%s%s%s", color, msg, resetColor)
-		return
-	}
-
-	if l.level == loglevel.ERROR {
-		return // Don't log anything under ERROR
 	}
 
 	if level == loglevel.WARN {

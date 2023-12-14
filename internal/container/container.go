@@ -223,7 +223,7 @@ func (container *EctoContainer) setDependencies(ctx context.Context, dep depende
 		if !ok {
 			msg := fmt.Sprintf("%s has a dependency on %s, but it is not registered", dep.GetName(), typeName)
 			if container.AllowMissingDependencies {
-				container.logger.Warn(msg)
+				container.logger.Info(msg)
 				continue
 			}
 			return ctx, dep, fmt.Errorf(msg)
@@ -275,7 +275,7 @@ func (container *EctoContainer) validateLifecycles(dep dependency.Dependency, ch
 		for _, parent := range chain {
 			if parent.GetLifecycle() == lifecycles.Scoped || parent.GetLifecycle() == lifecycles.Singleton {
 				if container.AllowCaptiveDependencies {
-					container.logger.Warn(fmt.Sprintf("captive dependency: %s is a %s but has a transient dependency %s. %s will behave as a %s", parent.GetName(), parent.GetLifecycle(), dep.GetName(), dep.GetName(), parent.GetLifecycle()))
+					container.logger.Info(fmt.Sprintf("captive dependency: %s is a %s but has a transient dependency %s. %s will behave as a %s", parent.GetName(), parent.GetLifecycle(), dep.GetName(), dep.GetName(), parent.GetLifecycle()))
 				} else {
 					return fmt.Errorf("captive dependency error: %s is a %s but has a transient dependency %s", parent.GetName(), parent.GetLifecycle(), dep.GetName())
 				}
@@ -288,7 +288,7 @@ func (container *EctoContainer) validateLifecycles(dep dependency.Dependency, ch
 		for _, parent := range chain {
 			if parent.GetLifecycle() == lifecycles.Singleton {
 				if container.AllowCaptiveDependencies {
-					container.logger.Warn(fmt.Sprintf("captive dependency: %s is a %s but has a scoped dependency %s. %s will behave as a %s", parent.GetName(), parent.GetLifecycle(), dep.GetName(), dep.GetName(), parent.GetLifecycle()))
+					container.logger.Info(fmt.Sprintf("captive dependency: %s is a %s but has a scoped dependency %s. %s will behave as a %s", parent.GetName(), parent.GetLifecycle(), dep.GetName(), dep.GetName(), parent.GetLifecycle()))
 				} else {
 					return fmt.Errorf("captive dependency error: %s is a %s but has a scoped dependency %s", parent.GetName(), parent.GetLifecycle(), dep.GetName())
 				}

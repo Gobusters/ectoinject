@@ -6,14 +6,16 @@ import (
 	"unsafe"
 )
 
-// returns the name of an interface as `modulePath.interfaceName`
+// GetIntefaceName returns the name of the interface in the format `modulePath.interfaceName`
+// T: The type to get the name of
 func GetIntefaceName[T any]() string {
 	// return the name of the interface
 	interfaceType := reflect.TypeOf((*T)(nil)).Elem()
 	return GetReflectTypeName(interfaceType)
 }
 
-// returns the name of a reflect.Type as `modulePath.typeName`
+// GetReflectTypeName returns the name of the type in the format `modulePath.typeName`
+// t: The type to get the name of
 func GetReflectTypeName(t reflect.Type) string {
 	// if t is a pointer, dereference it
 	if t.Kind() == reflect.Ptr {
@@ -26,7 +28,8 @@ func GetReflectTypeName(t reflect.Type) string {
 	return pkgPath + "." + name
 }
 
-// creates a new instance of a struct from a reflect.Type. t must be a struct type
+// NewStructInstance creates a new instance of a struct. Throws an error if t is not a struct
+// t: The type of the struct
 func NewStructInstance(t reflect.Type) (reflect.Value, error) {
 	// Ensure t is a struct type
 	if t.Kind() != reflect.Struct {
@@ -37,7 +40,9 @@ func NewStructInstance(t reflect.Type) (reflect.Value, error) {
 	return reflect.New(t).Elem(), nil
 }
 
-// get the method of a type by name. If the type is not a pointer, get the pointer to the type and check
+// GetMethodByName gets a method by name. If the method is not found, it will check for a pointer to the type and return the method if found. Returns the method and a bool indicating if the method was found
+// t: The type to get the method from
+// name: The name of the method
 func GetMethodByName(t reflect.Type, name string) (reflect.Method, bool) {
 	// Check for non-pointer type
 	method, ok := t.MethodByName(name)
@@ -55,6 +60,9 @@ func GetMethodByName(t reflect.Type, name string) (reflect.Method, bool) {
 	return method, false
 }
 
+// CastType casts a value to the provided type. Handles resolving pointers and interfaces. Returns the casted value and an error if the value cannot be casted
+// t: The type to cast to
+// v: The value to cast
 func CastType(t reflect.Type, v any) (reflect.Value, error) {
 	var zeroValue reflect.Value
 	vValue := reflect.ValueOf(v)
@@ -98,6 +106,9 @@ func CastType(t reflect.Type, v any) (reflect.Value, error) {
 	return vValue, nil
 }
 
+// Cast casts a value to the provided type. Handles resolving pointers and interfaces. Returns the casted value and an error if the value cannot be casted
+// T: The type to cast to
+// v: The value to cast
 func Cast[T any](v any) (T, error) {
 	var zeroValue T
 	tType := reflect.TypeOf((*T)(nil)).Elem()
@@ -110,6 +121,10 @@ func Cast[T any](v any) (T, error) {
 	return result.Interface().(T), nil
 }
 
+// SetField sets the value of a field. Resolves differences with interfaces and pointers. Handles unsafe setting of fields. Returns an error if the field cannot be set
+// target: The target struct to set the field on
+// field: The field to set
+// value: The value to set the field to
 func SetField(target reflect.Value, field reflect.StructField, value reflect.Value) error {
 	// get field index
 	index := field.Index
@@ -144,6 +159,8 @@ func SetField(target reflect.Value, field reflect.StructField, value reflect.Val
 	return nil
 }
 
+// GetPointerOfValue gets the pointer of a value. If the value is already a pointer, it will return the value. If the value is not addressable, it will return the value. Otherwise, it will return the address of the value
+// val: The value to get the pointer of
 func GetPointerOfValue(val reflect.Value) any {
 	if val.Kind() == reflect.Ptr {
 		return val.Interface()
@@ -156,6 +173,9 @@ func GetPointerOfValue(val reflect.Value) any {
 	return val.Addr().Interface()
 }
 
+// SameType checks if the provided types are the same. Handles resolving interfaces. Returns true if the types are the same, false otherwise
+// A: The first type to compare
+// B: The second type to compare
 func SameType[A any, B any]() bool {
 	typeOfA := reflect.TypeOf((*A)(nil)).Elem()
 	typeOfB := reflect.TypeOf((*B)(nil)).Elem()

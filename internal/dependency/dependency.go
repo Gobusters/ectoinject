@@ -21,6 +21,7 @@ type EctoDependency struct {
 	instance            any
 }
 
+// SetValue sets the value of the dependency
 func (d *EctoDependency) SetValue(v reflect.Value) error {
 	d.value = v
 	d.instance = ectoreflect.GetPointerOfValue(v)
@@ -28,10 +29,12 @@ func (d *EctoDependency) SetValue(v reflect.Value) error {
 	return nil
 }
 
+// GetValue gets the value of the dependency
 func (d *EctoDependency) GetValue() reflect.Value {
 	return d.value
 }
 
+// GetInstance gets the instance of the dependency
 func (d *EctoDependency) GetInstance() (any, error) {
 	if d.instance == nil {
 		return nil, fmt.Errorf("dependency '%s' has no instance", d.dependencyName)
@@ -46,37 +49,53 @@ func (d *EctoDependency) GetInstance() (any, error) {
 	return d.instance, nil
 }
 
+// HasValue checks if the dependency has a value
 func (d *EctoDependency) HasValue() bool {
 	return d.value != (reflect.Value{})
 }
 
+// HasConstructor checks if the dependency has a constructor func
 func (d *EctoDependency) HasConstructor() bool {
 	return d.constructor != (reflect.Method{})
 }
+
+// GetConstructor gets the constructor func of the dependency
 func (d *EctoDependency) GetConstructor() reflect.Method {
 	return d.constructor
 }
 
+// GetInstanceFunc returns the custom instance func of the dependency
 func (d *EctoDependency) GetInstanceFunc() func(context.Context) (any, error) {
 	return d.getInstanceFunc
 }
 
+// GetDependencyType returns the type of the dependency
 func (d *EctoDependency) GetDependencyType() reflect.Type {
 	return d.dependencyType
 }
 
+// GetName returns the name of the dependency
 func (d *EctoDependency) GetName() string {
 	return d.dependencyName
 }
 
+// GetDependencyValueType gets the type of the dependency value
 func (d *EctoDependency) GetDependencyValueType() reflect.Type {
 	return d.dependencyValueType
 }
 
+// GetLifecycle returns the lifecycle of the dependency
 func (d *EctoDependency) GetLifecycle() string {
 	return d.lifecycle
 }
 
+// NewDependency creates a new EctoDependency
+// TType: The type of the dependency
+// name: The name of the dependency
+// lifecycle: The lifecycle of the dependency
+// constructorName: The name of the constructor func
+// valueType: The type of the dependency value
+// getInstanceFunc: a function that returns the instance
 func NewDependency[TType any](name, lifecycle, constructorName string, valueType reflect.Type, getInstanceFunc func(context.Context) (any, error)) (*EctoDependency, error) {
 	dep := &EctoDependency{}
 	if name == "" {
