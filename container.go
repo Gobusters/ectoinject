@@ -85,8 +85,8 @@ func RegisterContainer(container ectocontainer.DIContainer) error {
 }
 
 // SetDefaultContainer sets the default container to use
-func SetDefaultContainer(containerID string) {
-	store.SetDefaultContainer(containerID)
+func SetDefaultContainer(containerID string) error {
+	return store.SetDefaultContainer(containerID)
 }
 
 // GetDefaultContainer gets the default container

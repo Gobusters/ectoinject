@@ -48,9 +48,18 @@ func GetDefaultContainer() ectocontainer.DIContainer {
 	return GetContainer(defaultContainerID)
 }
 
-func SetDefaultContainer(containerID string) {
+func SetDefaultContainer(containerID string) error {
+	if containerID == "" {
+		return fmt.Errorf("containerID cannot be empty")
+	}
+
+	if _, ok := containers[containerID]; !ok {
+		return fmt.Errorf("container with id '%s' does not exist", containerID)
+	}
 	defaultContainerID = containerID
 	defaultContainerSet = true
+
+	return nil
 }
 
 func GetDefaultContainerID() string {

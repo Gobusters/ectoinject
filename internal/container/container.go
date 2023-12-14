@@ -142,6 +142,9 @@ func (container *EctoContainer) getDependency(ctx context.Context, dep dependenc
 	// use the dependency's constructor if it has one
 	if dep.HasConstructor() {
 		return useDependencyConstructor(ctx, container, dep, chain)
+	} else if container.RequireConstructor {
+		container.logger.Warn("dependency '%s' does not have a constructor", dep.GetName())
+		return ctx, dep, nil
 	}
 
 	// create an instance of the dependency
