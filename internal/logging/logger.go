@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -15,7 +16,7 @@ const (
 	blue   = "\033[34m"
 )
 
-type LogFunc func(level, msg string)
+type LogFunc func(ctx context.Context, level, msg string)
 
 type Logger struct {
 	prefix         string
@@ -71,23 +72,23 @@ func validateLogLevel(level string) bool {
 // Warn Logs a message at the WARN level
 // format: The format string to use
 // args: The arguments to use in the format string
-func (l *Logger) Warn(format string, args ...any) {
+func (l *Logger) Warn(ctx context.Context, format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
-	l.LogMessage(loglevel.WARN, msg)
+	l.LogMessage(ctx, loglevel.WARN, msg)
 }
 
 // Info Logs a message at the INFO level
 // format: The format string to use
 // args: The arguments to use in the format string
-func (l *Logger) Info(format string, args ...any) {
+func (l *Logger) Info(ctx context.Context, format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
-	l.LogMessage(loglevel.INFO, msg)
+	l.LogMessage(ctx, loglevel.INFO, msg)
 }
 
 // LogMessage Logs a message to STDOUT
 // level: The log level to use
 // msg: The message to log
-func (l *Logger) LogMessage(level, msg string) {
+func (l *Logger) LogMessage(ctx context.Context, level, msg string) {
 	// Are logs enabled?
 	if !l.loggingEnabled {
 		return
@@ -95,7 +96,7 @@ func (l *Logger) LogMessage(level, msg string) {
 
 	// Use custom log function if provided
 	if l.customLogFunc != nil {
-		l.customLogFunc(level, msg)
+		l.customLogFunc(ctx, level, msg)
 		return
 	}
 

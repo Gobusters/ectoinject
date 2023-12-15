@@ -87,11 +87,11 @@ func (container *EctoContainer) getDependency(ctx context.Context, dep dependenc
 	}
 
 	// validate lifecycles
-	err = container.validateLifecycles(dep, chain)
+	err = container.validateLifecycles(ctx, dep, chain)
 	if err != nil {
 		// Are captive dependencies allowed?
 		if container.AllowCaptiveDependencies {
-			container.logger.Warn(err.Error()) // log the error
+			container.logger.Warn(ctx, err.Error()) // log the error
 		} else {
 			return ctx, dep, err // return the error
 		}
@@ -143,7 +143,7 @@ func (container *EctoContainer) getDependency(ctx context.Context, dep dependenc
 	if dep.HasConstructor() {
 		return useDependencyConstructor(ctx, container, dep, chain)
 	} else if container.RequireConstructor {
-		container.logger.Warn("dependency '%s' does not have a constructor", dep.GetName())
+		container.logger.Warn(ctx, "dependency '%s' does not have a constructor", dep.GetName())
 		return ctx, dep, nil
 	}
 
@@ -231,7 +231,7 @@ func (container *EctoContainer) setDependencies(ctx context.Context, dep depende
 		if !ok {
 			msg := fmt.Sprintf("%s has a dependency on %s, but it is not registered", dep.GetName(), typeName)
 			if container.AllowMissingDependencies {
-				container.logger.Info(msg)
+				container.logger.Info(ctx, msg)
 				continue
 			}
 			return ctx, dep, fmt.Errorf(msg)
@@ -280,13 +280,13 @@ func checkForCircularDependency(depName string, chain []dependency.Dependency) e
 	return nil
 }
 
-func (container *EctoContainer) validateLifecycles(dep dependency.Dependency, chain []dependency.Dependency) error {
+func (container *EctoContainer) validateLifecycles(ctx context.Context, dep dependency.Dependency, chain []dependency.Dependency) error {
 	if dep.GetLifecycle() == lifecycles.Transient {
 		// check if any of the parent dependencies are scoped or singleton
 		for _, parent := range chain {
 			if parent.GetLifecycle() == lifecycles.Scoped || parent.GetLifecycle() == lifecycles.Singleton {
 				if container.AllowCaptiveDependencies {
-					container.logger.Info(fmt.Sprintf("captive dependency: %s is a %s but has a transient dependency %s. %s will behave as a %s", parent.GetName(), parent.GetLifecycle(), dep.GetName(), dep.GetName(), parent.GetLifecycle()))
+					container.logger.Info(ctx, "captive dependency: %s is a %s but has a transient dependency %s. %s will behave as a %s", parent.GetName(), parent.GetLifecycle(), dep.GetName(), dep.GetName(), parent.GetLifecycle())
 				} else {
 					return fmt.Errorf("captive dependency error: %s is a %s but has a transient dependency %s", parent.GetName(), parent.GetLifecycle(), dep.GetName())
 				}
@@ -299,7 +299,7 @@ func (container *EctoContainer) validateLifecycles(dep dependency.Dependency, ch
 		for _, parent := range chain {
 			if parent.GetLifecycle() == lifecycles.Singleton {
 				if container.AllowCaptiveDependencies {
-					container.logger.Info(fmt.Sprintf("captive dependency: %s is a %s but has a scoped dependency %s. %s will behave as a %s", parent.GetName(), parent.GetLifecycle(), dep.GetName(), dep.GetName(), parent.GetLifecycle()))
+					container.logger.Info(ctx, "captive dependency: %s is a %s but has a scoped dependency %s. %s will behave as a %s", parent.GetName(), parent.GetLifecycle(), dep.GetName(), dep.GetName(), parent.GetLifecycle())
 				} else {
 					return fmt.Errorf("captive dependency error: %s is a %s but has a scoped dependency %s", parent.GetName(), parent.GetLifecycle(), dep.GetName())
 				}

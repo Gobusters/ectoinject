@@ -8,12 +8,23 @@ import (
 	"github.com/Gobusters/ectoinject/loglevel"
 )
 
-var defaulLoggerConfig = ectocontainer.DIContainerLoggerConfig{
+var DefaulLoggerConfig = ectocontainer.DIContainerLoggerConfig{
 	Prefix:      "ectoinject",
 	LogLevel:    loglevel.INFO,
 	EnableColor: true,
 	Enabled:     true,
 	LogFunc:     nil,
+}
+
+var DefaultContainerConfig = ectocontainer.DIContainerConfig{
+	ID:                       store.GetDefaultContainerID(),
+	AllowCaptiveDependencies: true,
+	AllowMissingDependencies: true,
+	RequireInjectTag:         false,
+	AllowUnsafeDependencies:  false,
+	ConstructorFuncName:      "Constructor",
+	InjectTagName:            "inject",
+	LoggerConfig:             &DefaulLoggerConfig,
 }
 
 // NewDIDefaultContainer creates a new container with the default configuration. The default configuration is:
@@ -25,24 +36,7 @@ var defaulLoggerConfig = ectocontainer.DIContainerLoggerConfig{
 // ConstructorFuncName: "Constructor"
 // InjectTagName: "inject"
 func NewDIDefaultContainer() (ectocontainer.DIContainer, error) {
-	logger, err := logging.NewLogger(defaulLoggerConfig.Prefix, defaulLoggerConfig.LogLevel, defaulLoggerConfig.EnableColor, defaulLoggerConfig.Enabled, defaulLoggerConfig.LogFunc)
-	if err != nil {
-		return nil, err
-	}
-
-	ectoContainer := container.NewEctoContainer(ectocontainer.DIContainerConfig{
-		ID:                       store.GetDefaultContainerID(),
-		AllowCaptiveDependencies: true,
-		AllowMissingDependencies: true,
-		RequireInjectTag:         false,
-		AllowUnsafeDependencies:  false,
-		ConstructorFuncName:      "Constructor",
-		InjectTagName:            "inject",
-	}, logger)
-
-	store.RegisterContainer(ectoContainer)
-
-	return ectoContainer, nil
+	return NewDIContainer(DefaultContainerConfig)
 }
 
 // NewDIContainer creates a new container with the provided configuration
@@ -53,7 +47,7 @@ func NewDIContainer(config ectocontainer.DIContainerConfig) (ectocontainer.DICon
 	}
 
 	if config.LoggerConfig == nil {
-		config.LoggerConfig = &defaulLoggerConfig
+		config.LoggerConfig = &DefaulLoggerConfig
 	}
 
 	if config.InjectTagName == "" {

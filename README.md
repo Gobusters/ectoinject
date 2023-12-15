@@ -1,6 +1,6 @@
 # ectoinject
 
-Simple, easy, user friendly Dependency Injection for Go projects. `ectoinject` is designed to allow users to quickly implement dependency injection with out the need for lots of boiler plate or code generation while still remaining flexible. Simply create a container, register the dependencies, and start using the dependencies.
+Simple, easy, user friendly Dependency Injection for Go projects. `ectoinject` is designed to allow users to quickly implement dependency injection without requiring extensive boilerplate code or code generation while still remaining flexible. Simply create a container, register the dependencies, and start using the dependencies.
 
 Features:
 
@@ -33,6 +33,12 @@ Features:
   - [RequireConstructor](#requireconstructor)
   - [ConstructorFuncName](#constructorfuncname)
   - [InjectTagName](#injecttagname)
+- [Logging](#logging)
+  - [Prefix](#prefix)
+  - [LogLevel](#loglevel)
+  - [EnableColors](#enablecolors)
+  - [Enabled](#enabled)
+  - [Custom Logging](#custom-logging)
 - [Inject Tag](#inject-tag)
 - [Multiple Containers](#multiple-containers)
 - [Unit Testing](#unit-testing)
@@ -53,13 +59,13 @@ go >= 1.18
 ### Lifecycles
 
 **Singleton**:
-A singleton dependency is created once and saved for the lifetime on the application. Singletons are the most performant dependencies but may cause issues if your dependency is stateful.
+A singleton dependency is created once and saved for the lifetime of the application. Singletons are the most performant dependencies but may cause issues if your dependency is stateful.
 
 **Scoped**: A scoped dependency is created once per context.Context. This is useful for situations where you need temporary statefulness between dependencies.
 
 **Transient**: A transient dependency is created everytime the dependency is requested.
 
-**Captive Dependencies**: A Captive dependency occurs when a dependencies parent has a longer lifecycle than the dependency. For example, if we have dependency `foo` that is a singleton and has dependency on transient dependency `bar`. When `foo` is created, an instance of `bar` will be created, but because `foo` is a singleton, `bar` will be captive till `foo` is deleted.
+**Captive Dependencies**: A Captive dependency occurs when a dependency's parent has a longer lifecycle than the dependency itself. For example, if we have dependency `foo` that is a singleton and has dependency on transient dependency `bar`. When `foo` is created, an instance of `bar` will be created, but because `foo` is a singleton, `bar` will be captive till `foo` is deleted.
 
 ## Usage
 
@@ -691,7 +697,7 @@ func main() {
 			LogLevel:    loglevel.INFO,
 			EnableColor: true,
 			Enabled:     true,
-			LogFunc: func(level, msg string) {
+			LogFunc: func(ctx context.Context, level, msg string) {
 				fmt.Printf("%s: %s\n", level, msg)
 			},
 		},
@@ -714,7 +720,13 @@ If enabled, `RequireInjectTag` struct fields without the inject tag will be igno
 
 ### AllowUnsafeDependencies
 
-If enabled, the container will attempt to inject a dependency for non-exported struct fields. If false, the container will ignore non-exported struct fields
+If enabled, the container will attempt to inject a dependency for non-exported struct fields. If false, the container will ignore non-exported struct fields. Below is an example where `Foo` has a dependency on an unexported dependency `bar`. If `AllowUnsafeDependencies` is enabled, the container will attempt to inject `bar` despite it not being exported
+
+```go
+type Foo struct {
+	bar Bar // unexported field
+}
+```
 
 ### RequireConstructor
 
@@ -737,6 +749,46 @@ type Foo struct {
 	Bar       Bar `inject:"bar"` // the container will look for dependency with name "bar"
 	MyPrivate Dep `inject:"-"`   // the container will ignore this depenency
 }
+```
+
+## Logging
+
+`ectoinject` does log messages to stdout in some instances. These logs are intended to help you identify potential issues in the dependency tree. You can change the behavior of these logs using the `LoggerConfig` field on the [container configuration](##Configuration)
+
+### Prefix
+
+This is a string added to the front of each log message. It defaults to "ectoinject" and is intended to help you identify where the log message originated.
+
+### LogLevel
+
+This affects the verbosity of the logs. It defaults to `loglevel.INFO` but can be changed to `loglevel.WARN`.
+
+### EnableColors
+
+If enabled, the logs will be colored to indicate their log level. This is intended to help draw attention to specific messages.
+
+### Enabled
+
+If false, no logs will be output
+
+### Custom Logging
+
+Using the `LogFunc` you can override the logger behavior. This allows you set a custom logging function. It can be useful for situations where
+you have a standardized logger or log format. The example below demonstrates implementing a [logrus](https://github.com/sirupsen/logrus) logger
+
+```go
+	myLogrusLogger := func(ctx context.Context, level, msg string) {
+		if level == loglevel.INFO {
+			logrus.WithContext(ctx).Info(msg)
+		}
+		if level == loglevel.WARN {
+			logrus.WithContext(ctx).Warn(msg)
+		}
+	}
+	config := ectoinject.DefaultContainerConfig
+	config.LoggerConfig.LogFunc = myLogrusLogger
+	// create default container
+	container, err := ectoinject.NewDIContainer(config)
 ```
 
 ## Multiple Containers
