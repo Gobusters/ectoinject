@@ -16,11 +16,11 @@ type DIContainer interface {
 
 // DIContainerLoggerConfig is the configuration for the logger used by the container
 type DIContainerLoggerConfig struct {
-	Prefix      string                  // The prefix to use for the logger
-	LogLevel    string                  // The log level to use for the logger
-	EnableColor bool                    // Enables colors in the log messages
-	Enabled     bool                    // Enables the logger
-	LogFunc     func(level, msg string) // A custom log function to use
+	Prefix      string                                       // The prefix to use for the logger
+	LogLevel    string                                       // The log level to use for the logger
+	EnableColor bool                                         // Enables colors in the log messages
+	Enabled     bool                                         // Enables the logger
+	LogFunc     func(ctx context.Context, level, msg string) // A custom log function to use
 }
 
 // DIContainerConfig is the configuration for the container
