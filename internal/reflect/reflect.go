@@ -52,7 +52,7 @@ func GetMethodByName(t reflect.Type, name string) (reflect.Method, bool) {
 
 	// If t is not a pointer, get the pointer to t and check
 	if t.Kind() != reflect.Ptr {
-		pointerType := reflect.PtrTo(t)
+		pointerType := reflect.PointerTo(t)
 		method, ok = pointerType.MethodByName(name)
 		return method, ok
 	}
@@ -201,7 +201,7 @@ func typeImplementsInterface(t reflect.Type, interfaceType reflect.Type) bool {
 
 	// If 't' is not a pointer type, check if a pointer to 't' implements the interface
 	if t.Kind() != reflect.Ptr {
-		ptrType := reflect.PtrTo(t)
+		ptrType := reflect.PointerTo(t)
 		return ptrType.Implements(interfaceType)
 	}
 
