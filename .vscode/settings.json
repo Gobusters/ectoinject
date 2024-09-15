@@ -1,0 +1,38 @@
+{
+  // linting with golangci-lint
+  "go.lintTool": "golangci-lint",
+  "go.lintFlags": ["-c", ".golangci.yml"],
+  "go.lintOnSave": "workspace",
+
+  // formatting with gofmt
+  "go.formatTool": "gofmt",
+
+  // format on save
+  "editor.formatOnSave": true,
+
+  // set prettier as default formatter
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[go]": {
+    "editor.defaultFormatter": "golang.go"
+  },
+
+  // run tests on save
+  "go.testOnSave": true,
+  "go.testFlags": ["-v", "-cover"],
+
+  // Enable coverage indicators
+  "go.coverageDecorator": {
+    "type": "highlight"
+  },
+  "go.coverOnSave": true,
+  "go.coverOnSingleTest": true,
+  "go.coverageOptions": "showUncoveredCodeOnly"
+}

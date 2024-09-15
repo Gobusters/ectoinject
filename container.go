@@ -66,9 +66,15 @@ func NewDIContainer(config ectocontainer.DIContainerConfig) (ectocontainer.DICon
 
 	ectoContainer := container.NewEctoContainer(config, logger)
 
-	RegisterInstance[ectocontainer.DIContainer](ectoContainer, &ectoContainer)
+	err = RegisterInstance[ectocontainer.DIContainer](ectoContainer, &ectoContainer)
+	if err != nil {
+		return nil, err
+	}
 
-	store.RegisterContainer(ectoContainer)
+	err = store.RegisterContainer(ectoContainer)
+	if err != nil {
+		return nil, err
+	}
 
 	return ectoContainer, nil
 }
