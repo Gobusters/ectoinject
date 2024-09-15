@@ -6,7 +6,9 @@ import (
 	"github.com/Gobusters/ectoinject/dependency"
 )
 
-var contextScopedContainerIDKey = "ectoinject-dependency-scoped-container"
+type contextKey string
+
+var contextScopedContainerIDKey = contextKey("ectoinject-dependency-scoped-container")
 
 // AddScopedDependency adds a scoped dependency to the context. This allows for scoped caching of dependencies on the context
 // ctx: The context to add the scoped dependency to

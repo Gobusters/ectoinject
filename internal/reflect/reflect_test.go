@@ -9,7 +9,6 @@ import (
 
 func TestNewStructInstance(t *testing.T) {
 	type testStruct struct {
-		name string
 	}
 
 	// create a new instance of testStruct

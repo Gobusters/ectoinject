@@ -90,7 +90,7 @@ func useDependencyConstructor(ctx context.Context, container *EctoContainer, dep
 		return ctx, dep, fmt.Errorf("constructor '%s' on dependnecy '%s' did not return an instance", constructor.Name, dep.GetName())
 	}
 
-	dep.SetValue(result[0])
+	_ = dep.SetValue(result[0])
 	container.container[dep.GetName()] = dep
 
 	if len(result) == 1 {

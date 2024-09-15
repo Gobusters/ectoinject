@@ -8,7 +8,9 @@ import (
 	"github.com/Gobusters/ectoinject/internal/store"
 )
 
-var contextContainerIDKey = "ectoinject-dependency-container-id"
+type contextKey string
+
+var contextContainerIDKey = contextKey("ectoinject-dependency-container-id")
 
 // SetActiveContainer sets the active container in the context
 // ctx: The context to set the active container in

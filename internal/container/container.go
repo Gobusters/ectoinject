@@ -91,7 +91,7 @@ func (container *EctoContainer) getDependency(ctx context.Context, dep dependenc
 	if err != nil {
 		// Are captive dependencies allowed?
 		if container.AllowCaptiveDependencies {
-			container.logger.Warn(ctx, err.Error()) // log the error
+			container.logger.Warn(ctx, "Lifecycle validation error: %v", err)
 		} else {
 			return ctx, dep, err // return the error
 		}
@@ -167,7 +167,10 @@ func (container *EctoContainer) getDependencyWithDependencies(ctx context.Contex
 	if err != nil {
 		return ctx, dep, fmt.Errorf("failed to create new struct instance for dependency '%s': %w", dep.GetName(), err)
 	}
-	dep.SetValue(val)
+	err = dep.SetValue(val)
+	if err != nil {
+		return ctx, dep, err
+	}
 
 	// Set dependencies
 	ctx, dep, err = container.setDependencies(ctx, dep, chain)
@@ -231,10 +234,10 @@ func (container *EctoContainer) setDependencies(ctx context.Context, dep depende
 		if !ok {
 			msg := fmt.Sprintf("%s has a dependency on %s, but it is not registered", dep.GetName(), typeName)
 			if container.AllowMissingDependencies {
-				container.logger.Info(ctx, msg)
+				container.logger.Info(ctx, "%s", msg)
 				continue
 			}
-			return ctx, dep, fmt.Errorf(msg)
+			return ctx, dep, fmt.Errorf("%s", msg)
 		}
 
 		var err error
@@ -251,8 +254,8 @@ func (container *EctoContainer) setDependencies(ctx context.Context, dep depende
 		}
 	}
 
-	dep.SetValue(val)
-	return ctx, dep, nil
+	err := dep.SetValue(val)
+	return ctx, dep, err
 }
 
 func (container *EctoContainer) getContainerDependency(name string) (any, bool) {
