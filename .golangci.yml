@@ -17,6 +17,10 @@ linters:
       - linters:
           - errcheck
         path: _test\.go
+      - linters:
+          - errcheck
+          - staticcheck
+        path: examples/
     paths:
       - third_party$
       - builtin$
