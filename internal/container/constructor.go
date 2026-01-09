@@ -83,17 +83,23 @@ func useDependencyConstructor(ctx context.Context, container *EctoContainer, dep
 		args[i] = val
 	}
 
+	// Unlock the mutex before calling the constructor since the constructor
+	// might call back into the container to get dependencies
+	container.mutex.Unlock()
+
 	// call the constructor with the args
 	result := constructor.Func.Call(args)
+
+	// Re-lock the mutex after the constructor returns
+	container.mutex.Lock()
 
 	if len(result) == 0 {
 		return ctx, dep, fmt.Errorf("constructor '%s' on dependnecy '%s' did not return an instance", constructor.Name, dep.GetName())
 	}
 
 	_ = dep.SetValue(result[0])
-	container.mutex.Lock()
+	// Note: mutex is already held by caller
 	container.container[dep.GetName()] = dep
-	container.mutex.Unlock()
 
 	if len(result) == 1 {
 		return ctx, dep, nil
