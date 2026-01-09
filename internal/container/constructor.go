@@ -91,7 +91,9 @@ func useDependencyConstructor(ctx context.Context, container *EctoContainer, dep
 	}
 
 	_ = dep.SetValue(result[0])
+	container.mutex.Lock()
 	container.container[dep.GetName()] = dep
+	container.mutex.Unlock()
 
 	if len(result) == 1 {
 		return ctx, dep, nil
