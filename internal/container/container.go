@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/Gobusters/ectoinject/dependency"
 	"github.com/Gobusters/ectoinject/ectocontainer"
@@ -19,6 +20,7 @@ type EctoContainer struct {
 	ectocontainer.DIContainerConfig                                  // The configuration for the container
 	logger                          *logging.Logger                  // The logger to use
 	container                       map[string]dependency.Dependency // The container of dependencies
+	mutex                           *sync.Mutex                      // The mutex to use for the container
 }
 
 func NewEctoContainer(config ectocontainer.DIContainerConfig, logger *logging.Logger) *EctoContainer {
@@ -26,6 +28,7 @@ func NewEctoContainer(config ectocontainer.DIContainerConfig, logger *logging.Lo
 		DIContainerConfig: config,
 		logger:            logger,
 		container:         make(map[string]dependency.Dependency),
+		mutex:             &sync.Mutex{},
 	}
 }
 
@@ -34,6 +37,8 @@ func (container *EctoContainer) GetContainerID() string {
 }
 
 func (container *EctoContainer) AddDependency(dep dependency.Dependency) {
+	container.mutex.Lock()
+	defer container.mutex.Unlock()
 	container.container[dep.GetName()] = dep
 }
 
@@ -53,6 +58,8 @@ func (container *EctoContainer) Get(ctx context.Context, name string) (context.C
 	}
 
 	// check if the dependency is registered
+	container.mutex.Lock()
+	defer container.mutex.Unlock()
 	dep, ok := container.container[name]
 	if !ok {
 		return ctx, nil, fmt.Errorf("dependency for %s not found", name)
@@ -76,6 +83,7 @@ func (container *EctoContainer) Get(ctx context.Context, name string) (context.C
 }
 
 func (container *EctoContainer) getDependency(ctx context.Context, dep dependency.Dependency, chain []dependency.Dependency) (context.Context, dependency.Dependency, error) {
+	// Note: mutex is already held by caller (Get method)
 	defer func() {
 		container.container[dep.GetName()] = dep // update the container with the new instance
 	}()
@@ -127,7 +135,12 @@ func (container *EctoContainer) getDependency(ctx context.Context, dep dependenc
 	// if the user has provided a GetInstanceFunc, use that to get the instance
 	instanceFunc := dep.GetInstanceFunc()
 	if instanceFunc != nil {
+		// Unlock the mutex before calling the instance function since it
+		// might call back into the container to get dependencies
+		container.mutex.Unlock()
 		instance, err := instanceFunc(ctx)
+		container.mutex.Lock()
+
 		if err != nil {
 			return ctx, dep, err
 		}
@@ -246,6 +259,7 @@ func (container *EctoContainer) setDependencies(ctx context.Context, dep depende
 			return ctx, dep, err
 		}
 
+		// Note: mutex is already held by caller
 		container.container[typeName] = childDep
 
 		err = ectoreflect.SetField(val, field, childDep.GetValue())
